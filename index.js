@@ -31,7 +31,7 @@ const express = require('express');
 const app = express();
 
 const bodyParser = require('body-parser');
-const multer = require('multer');
+const storage = require('./libs/storage');
 
 const TaskManager = require('./libs/TaskManager');
 const odmInfo = require('./libs/odmInfo');
@@ -48,7 +48,7 @@ app.options('*', cors())
 app.use(express.static('public'));
 app.use('/swagger.json', express.static('docs/swagger.json'));
 
-const formDataParser = multer().none();
+const formDataParser = storage.fields();
 const urlEncodedBodyParser = bodyParser.urlencoded({extended: false});
 const jsonBodyParser = bodyParser.json();
 
