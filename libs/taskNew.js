@@ -16,7 +16,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-const multer = require('multer');
+const storage = require('./storage');
 const fs = require('fs');
 const path = require('path');
 const TaskManager = require('./TaskManager');
@@ -48,48 +48,6 @@ const removeDirectory = function(dir, cb = () => {}){
         else cb(err);
     });
 };
-
-const assureUniqueFilename = (dstPath, filename, cb) => {
-    const dstFile = path.join(dstPath, filename);
-    fs.exists(dstFile, exists => {
-        if (!exists) cb(null, filename);
-        else{
-            const parts = filename.split(".");
-            if (parts.length > 1){
-                assureUniqueFilename(dstPath, 
-                    `${parts.slice(0, parts.length - 1).join(".")}_.${parts[parts.length - 1]}`, 
-                    cb);
-            }else{
-                // Filename without extension? Strange..
-                assureUniqueFilename(dstPath, filename + "_", cb);
-            }
-        }
-    });
-};
-
-const upload = multer({
-    storage: multer.diskStorage({
-        destination: (req, file, cb) => {
-            let dstPath = path.join("tmp", req.id);
-            fs.exists(dstPath, exists => {
-                if (!exists) {
-                    fs.mkdir(dstPath, undefined, () => {
-                        cb(null, dstPath);
-                    });
-                } else {
-                    cb(null, dstPath);
-                }
-            });
-        },
-        filename: (req, file, cb) => {
-            let filename = file.originalname;
-            if (filename === "body.json") filename = "_body.json";
-
-            let dstPath = path.join("tmp", req.id);
-            assureUniqueFilename(dstPath, filename, cb);
-        }
-    })
-});
 
 module.exports = {
     assignUUID: (req, res, next) => {
@@ -137,7 +95,10 @@ module.exports = {
         }
     },
 
-    uploadImages: upload.array("images"),
+    uploadImages: storage.files("images",
+        req => path.join("tmp", req.id),
+        filename => filename === "body.json" ? "_body.json" : filename,
+        60 * 1000),
 
     handleUpload: (req, res) => {
         // IMPROVEMENT: check files count limits ahead of handleTaskNew
@@ -152,7 +113,7 @@ module.exports = {
         const srcPath = path.join("tmp", req.id);
         const bodyFile = path.join(srcPath, "body.json");
 
-        async.series([
+        storage.cancel(req.id, () => async.series([
             cb => {
                 fs.readFile(bodyFile, 'utf8', (err, data) => {
                     if (err) cb(err);
@@ -181,7 +142,7 @@ module.exports = {
                 }
                 next();
             }
-        });
+        }));
     },
 
     handleInit: (req, res) => {
@@ -275,13 +236,9 @@ module.exports = {
                 if (req.body.zipurl) {
                     let archive = "zipurl.zip";
 
-                    upload.storage.getDestination(req, archive, (err, dstPath) => {
+                    fs.mkdir(srcPath, { recursive: true }, err => {
                         if (err) cb(err);
-                        else{
-                            let archiveDestPath = path.join(dstPath, archive);
-
-                            download(req.body.zipurl, archiveDestPath, cb);
-                        }
+                        else download(req.body.zipurl, path.join(srcPath, archive), cb);
                     });
                 } else {
                     cb();
