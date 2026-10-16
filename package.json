@@ -1,7 +1,7 @@
 {
   "name": "NodeODX",
-  "version": "2.3.1",
-  "description": "REST API to access ODM",
+  "version": "2.4.0",
+  "description": "REST API to access ODX",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
