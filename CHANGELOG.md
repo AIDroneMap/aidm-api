@@ -29,4 +29,4 @@ The first AIDM API release. It is NodeODX 2.4.0, packaged and named as AIDM API,
 ### Known limitations
 
 - The image runs Node.js 14, which no longer receives security updates. Moving to a supported Node.js release is planned as its own change.
-- Images are for Linux on x86-64. arm64 images will follow.
+- Images are for Linux only. The CPU image runs on x86-64 and arm64, the GPU image on x86-64 only.
