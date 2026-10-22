@@ -24,7 +24,7 @@ let packageJson = JSON.parse(fs.readFileSync('../package.json'));
 let options = {
   swaggerDefinition: {
     info: {
-      title: packageJson.name,
+      title: "AIDM API",
       version: packageJson.version,
       description: packageJson.description,
       license: {

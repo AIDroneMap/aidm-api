@@ -4,7 +4,7 @@
 
 AIDM API is a REST server that accepts drone images, runs the AIDM engine on them, and returns the results. It is forked from [NodeODX](https://github.com/WebODM/NodeODX) and keeps the same API, so clients such as [WebODM](https://github.com/WebODM/WebODM), PyODX and CloudODX can connect to it without changes.
 
-> **Status: just forked, no release yet.** This repository currently matches NodeODX 2.4.0. Until the first AIDM release, use [NodeODX](https://github.com/WebODM/NodeODX) for production work.
+> **Status: 2.5.0, part of the first AIDM release.** AIDM API 2.5.0 is NodeODX 2.4.0 packaged as AIDM API, on top of the AIDM 0.1.0 engine. The [changelog](CHANGELOG.md) lists what changed.
 
 ## Where it fits
 
@@ -20,16 +20,8 @@ The engine and this API ship together in one container image. Scheduling across 
 
 ## Quick start
 
-Prebuilt images are not published yet, so build the engine first and then this API on top of it.
-
 ```
-git clone https://github.com/AIDroneMap/aidm.git
-git clone https://github.com/AIDroneMap/aidm-api.git
-
-docker build -t aidm aidm
-docker build --build-arg FROM_REPO=aidm -t aidm-api aidm-api
-
-docker run -p 3000:3000 aidm-api
+docker run -p 3000:3000 ghcr.io/aidronemap/aidm-api:2.5.0
 ```
 
 Open http://127.0.0.1:3000, add some images and press **Start Task**.
@@ -39,10 +31,22 @@ Open http://127.0.0.1:3000, add some images and press **Start Task**.
 With an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html):
 
 ```
+docker run -p 3000:3000 --gpus all ghcr.io/aidronemap/aidm-api:2.5.0-gpu
+```
+
+### Build from source
+
+Build the engine first, then this API on top of it:
+
+```
+git clone https://github.com/AIDroneMap/aidm.git
+git clone https://github.com/AIDroneMap/aidm-api.git
+
+docker build -t aidm aidm
+docker build --build-arg FROM_REPO=aidm -t aidm-api aidm-api
+
 docker build -f aidm/gpu.Dockerfile -t aidm:gpu aidm
 docker build -f aidm-api/Dockerfile.gpu --build-arg FROM_REPO=aidm:gpu -t aidm-api:gpu aidm-api
-
-docker run -p 3000:3000 --gpus all aidm-api:gpu
 ```
 
 ### Keeping results
@@ -50,7 +54,7 @@ docker run -p 3000:3000 --gpus all aidm-api:gpu
 Results are stored in `/var/www/data` inside the container. Mount a folder there to keep them:
 
 ```
-docker run -p 3000:3000 -v /path/to/storage:/var/www/data aidm-api
+docker run -p 3000:3000 -v /path/to/storage:/var/www/data ghcr.io/aidronemap/aidm-api:2.5.0
 ```
 
 ## Configuration
@@ -68,11 +72,13 @@ Settings are passed as command-line flags after the image name, or in a JSON fil
 | `--s3_endpoint`, `--s3_bucket` | Upload finished results to S3-compatible storage |
 | `--test` | Test mode: simulates the engine, for development without it |
 
-Run `docker run --rm aidm-api --help` for the full list, and see `config-default.json` for the file format.
+Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.5.0 --help` for the full list, and see `config-default.json` for the file format.
 
 ## API
 
-The API specification is in [docs/index.adoc](docs/index.adoc), with a Swagger file in [docs/swagger.json](docs/swagger.json). It is the same as NodeODX API 2.x. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
+The API specification is in [docs/index.adoc](docs/index.adoc), with a Swagger file in [docs/swagger.json](docs/swagger.json). It is compatible with NodeODX API 2.x, and `GET /info` adds two fields, `upstreamVersion` and `engineUpstreamVersion`. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
+
+The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0. The API version never goes below 2.4.0, because PyODX and WebODM read it from `GET /info` and switch to older code paths below 1.4.0 and 1.5.1.
 
 Any change to the API must stay compatible: new fields and endpoints may be added, existing ones are not renamed or removed.
 

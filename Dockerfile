@@ -1,6 +1,12 @@
-ARG FROM_REPO=webodm/odx
+ARG FROM_REPO=ghcr.io/aidronemap/aidm:0.1.0
 FROM ${FROM_REPO}
-MAINTAINER Piero Toffanin <pt@masseranolabs.com>
+
+# Image metadata. Keep the version equal to "version" in package.json.
+LABEL org.opencontainers.image.source="https://github.com/AIDroneMap/aidm-api" \
+      org.opencontainers.image.version="2.5.0" \
+      org.opencontainers.image.licenses="AGPL-3.0" \
+      org.opencontainers.image.title="AIDM API" \
+      org.opencontainers.image.description="REST task API and AIDM photogrammetry engine in one image. Based on NodeODX and ODX."
 
 EXPOSE 3000
 
