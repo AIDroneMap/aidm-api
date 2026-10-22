@@ -30,8 +30,8 @@ Usage: node index.js [options]
 Options:
 	--config <path>	Path to the configuration file (default: config-default.json)	
 	-p, --port <number> 	Port to bind the server to, or "auto" to automatically find an available port (default: 3000)
-	--odm_path <path>	Path to ODX's code (deprecated)	(default: /code)
-	--odx_path <path>	Path to ODX's code (default: /code)
+	--odm_path <path>	Path to the AIDM engine's code (deprecated)	(default: /code)
+	--odx_path <path>	Path to the AIDM engine's code (default: /code)
 	--log_level <logLevel>	Set log level verbosity (default: info)
 	-d, --daemon 	Set process to run as a deamon
 	-q, --parallel_queue_processing <number> Number of simultaneous processing tasks (default: 2)

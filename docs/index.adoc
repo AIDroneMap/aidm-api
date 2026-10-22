@@ -1,14 +1,14 @@
-= NodeODX
+= AIDM API
 
 
 [[_overview]]
 == Overview
-REST API to access ODX
+REST task API of the AIDM photogrammetry engine
 
 
 === Version information
 [%hardbreaks]
-_Version_ : 2.4.0
+_Version_ : 3.0.0
 
 
 === Contact information
@@ -182,6 +182,8 @@ _optional_|Amount of RAM available in bytes|integer
 _optional_|Number of CPU cores (virtual)|integer
 |*engine* +
 _required_|Lowercase identifier of processing engine|string
+|*engineUpstreamVersion* +
+_optional_|Name and version of the ODX release the processing engine is based on|string
 |*engineVersion* +
 _required_|Current version of processing engine|string
 |*maxImages* +
@@ -192,6 +194,8 @@ _optional_|Maximum number of tasks that can be processed simultaneously|integer
 _required_|Number of tasks currently being processed or waiting to be processed|integer
 |*totalMemory* +
 _optional_|Amount of total RAM in the system in bytes|integer
+|*upstreamVersion* +
+_optional_|Name and version of the NodeODX release this API is based on|string
 |*version* +
 _required_|Current API version|string
 |===

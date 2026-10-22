@@ -92,6 +92,13 @@ module.exports = {
         });
     },
 
+    getUpstreamVersion: function(done){
+        fs.readFile(path.join(config.odx_path, 'UPSTREAM_VERSION'), {encoding: 'utf8'}, (err, content) => {
+            if (err) done(null, "?");
+            else done(null, content.split("\n").map(l => l.trim())[0]);
+        });
+    },
+
     getEngine: function(done){
         fs.readFile(path.join(config.odx_path, 'ENGINE'), {encoding: 'utf8'}, (err, content) => {
             if (err) done(null, "odx"); // Assumed
@@ -151,14 +158,14 @@ module.exports = {
                 .on('exit', (code, signal) => {
                     try{
                         fs.readFile(env.ODX_OPTIONS_TMP_FILE, { encoding: "utf8" }, (err, data) => {
-                            if (err) handleResult(new Error(`Cannot read list of options from ODX (from temporary file). Is ODX installed in ${config.odx_path}?`));
+                            if (err) handleResult(new Error(`Cannot read list of options from AIDM (from temporary file). Is AIDM installed in ${config.odx_path}?`));
                             else{
                                 let json = JSON.parse(data);
                                 handleResult(null, json);
                             }
                         });
                     }catch(err){
-                        handleResult(new Error(`Could not load list of options from ODX. Is ODX installed in ${config.odx_path}? Make sure that ODX is installed and that --odx_path is set properly: ${err.message}`));
+                        handleResult(new Error(`Could not load list of options from AIDM. Is AIDM installed in ${config.odx_path}? Make sure that AIDM is installed and that --odx_path is set properly: ${err.message}`));
                     }
                 })
                 .on('error', handleResult);

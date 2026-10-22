@@ -751,15 +751,22 @@ app.get('/options', authCheck, (req, res) => {
  *             engine:
  *               type: string
  *               description: Lowercase identifier of processing engine
+ *             upstreamVersion:
+ *               type: string
+ *               description: Name and version of the NodeODX release this API is based on
+ *             engineUpstreamVersion:
+ *               type: string
+ *               description: Name and version of the ODX release the processing engine is based on
  */
 app.get('/info', authCheck, (req, res) => {
     async.parallel({
         cpu: cb => si.cpu(data => cb(null, data)),
         mem: cb => si.mem(data => cb(null, data)),
         engineVersion: odmInfo.getVersion,
-        engine: odmInfo.getEngine
+        engine: odmInfo.getEngine,
+        engineUpstreamVersion: odmInfo.getEngineUpstreamVersion
     }, (_, data) => {
-        const { cpu, mem, engineVersion, engine } = data;
+        const { cpu, mem, engineVersion, engine, engineUpstreamVersion } = data;
 
         // For testing
         if (req.query._debugUnauthorized){
@@ -777,7 +784,9 @@ app.get('/info', authCheck, (req, res) => {
             maxImages: config.maxImages,
             maxParallelTasks: config.parallelQueueProcessing,
             engineVersion,
-            engine
+            engine,
+            upstreamVersion: packageJson.upstreamVersion,
+            engineUpstreamVersion
         });
     });
 });
@@ -916,6 +925,16 @@ if (!config.has7z) logger.warn("The 7z program is not installed, falling back to
 
 let commands = [
     cb => odmInfo.initialize(cb),
+    cb => {
+        async.parallel({
+            engine: odmInfo.getEngine,
+            engineVersion: odmInfo.getVersion,
+            engineUpstreamVersion: odmInfo.getEngineUpstreamVersion
+        }, (_, e) => {
+            logger.info(`AIDM API ${packageJson.version} (${packageJson.upstreamVersion}), engine ${e.engine} ${e.engineVersion} (${e.engineUpstreamVersion})`);
+            cb();
+        });
+    },
     cb => auth.initialize(cb),
     cb => S3.initialize(cb),
     cb => { 
