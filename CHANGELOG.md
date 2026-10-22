@@ -2,20 +2,20 @@
 
 AIDM API uses [Semantic Versioning](https://semver.org). Each release names the NodeODX version it is based on.
 
-Numbering starts at 3.0.0, above NodeODX 2.4.0. Clients read the API `version` from `GET /info`, and PyODX and WebODM switch to older code paths below 1.4.0 and 1.5.1. A lower number would break them.
+The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0.
 
-## 3.0.0
+## 2.5.0
 
 The first AIDM API release. It is NodeODX 2.4.0, packaged and named as AIDM API, and runs on the AIDM 0.1.0 engine. API behaviour is unchanged.
 
 ### Added
 
 - `GET /info` has two new fields. `upstreamVersion` holds `NodeODX 2.4.0`. `engineUpstreamVersion` holds the ODX version the engine is based on, `ODX 3.8.4`, read from the engine's `UPSTREAM_VERSION` file.
-- At startup, the log shows the API and engine versions, for example `AIDM API 3.0.0 (NodeODX 2.4.0), engine aidm 0.1.0 (ODX 3.8.4)`.
+- At startup, the log shows the API and engine versions, for example `AIDM API 2.5.0 (NodeODX 2.4.0), engine aidm 0.1.0 (ODX 3.8.4)`.
 
 ### Changed
 
-- The API `version` is `3.0.0`.
+- The API `version` is `2.5.0`. It is a minor version because the only API change is two new optional fields.
 - The default base images are `ghcr.io/aidronemap/aidm:0.1.0` and `ghcr.io/aidronemap/aidm:0.1.0-gpu`.
 - With the AIDM 0.1.0 engine, `GET /info` reports `engine` as `aidm` and `engineVersion` as `0.1.0`.
 - The web page, `--help` and engine error messages say AIDM API or AIDM.
