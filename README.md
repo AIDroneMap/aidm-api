@@ -1,243 +1,105 @@
-# NodeODX
+# AIDM API
 
-![CPU Build](https://img.shields.io/github/actions/workflow/status/WebODM/NodeODX/publish-docker.yml?branch=master&label=docker%20CPU) ![GPU Build](https://img.shields.io/github/actions/workflow/status/WebODM/NodeODX/publish-docker-gpu.yml?branch=master&label=docker%20GPU) ![Windows Build](https://img.shields.io/github/actions/workflow/status/WebODM/NodeODX/publish-windows.yml?branch=master&label=windows) ![Version](https://img.shields.io/github/v/release/WebODM/NodeODX) ![License](https://img.shields.io/github/license/WebODM/NodeODX) ![Contributors](https://img.shields.io/github/contributors/WebODM/NodeODX) ![Updated](https://img.shields.io/github/last-commit/WebODM/NodeODX)
+**The task API of the [AIDM](https://github.com/AIDroneMap/aidm) photogrammetry engine, part of [AIDroneMap](https://github.com/AIDroneMap).**
 
-> **📢 Now with upgraded AWS SDK!** [Read the announcement](https://webodm.org/blog/announcement/)
+AIDM API is a REST server that accepts drone images, runs the AIDM engine on them, and returns the results. It is forked from [NodeODX](https://github.com/WebODM/NodeODX) and keeps the same API, so clients such as [WebODM](https://github.com/WebODM/WebODM), PyODX and CloudODX can connect to it without changes.
 
+> **Status: just forked, no release yet.** This repository currently matches NodeODX 2.4.0. Until the first AIDM release, use [NodeODX](https://github.com/WebODM/NodeODX) for production work.
 
-NodeODX is a [standard API specification](https://github.com/WebODM/NodeODX/blob/master/docs/index.adoc) for processing aerial images with engines such as [ODX](https://github.com/WebODM/ODX). The API is used by clients such as [WebODM](https://github.com/WebODM/WebODM), [CloudODX](https://github.com/WebODM/CloudODX) and [PyODX](https://github.com/WebODM/PyODX). This repository contains a performant, production-ready reference implementation written in NodeJS.
+## Where it fits
 
-<img width="915" height="254" alt="image" src="https://github.com/user-attachments/assets/3754a3b3-ba8c-4957-b2c6-59bc1bcafb8a" />
+AIDroneMap has three separate parts:
 
-## Getting Started
+| Part | Repository | Role |
+| --- | --- | --- |
+| Engine | [aidm](https://github.com/AIDroneMap/aidm) | Turns images into maps and models |
+| Task API | this repository | Runs the engine on one machine and exposes it over HTTP |
+| Cloud layer | coming later | Spreads jobs across many machines and cloud providers |
 
-We recommend that you setup NodeODX using [Docker](https://www.docker.com/).
+The engine and this API ship together in one container image. Scheduling across machines is not part of this repository.
 
-* From a command prompt / terminal type:
-```
-docker run -p 3000:3000 webodm/nodeodx
-```
+## Quick start
 
-Linux users can connect to 127.0.0.1.
-
-* Open a Web Browser to `http://127.0.0.1:3000`
-* Load [some images](https://webodm.org/datasets)
-* Press "Start Task"
-* Go for a walk :)
-
-If the computer running NodeODX is using an old or 32bit CPU, you need to compile ODX from sources and setup NodeODX natively. You cannot use docker. Docker images work with CPUs with 64-bit extensions, MMX, SSE, SSE2, SSE3 and SSSE3 instruction set support or higher. Seeing a `Illegal instruction` error while processing images is an indication that your CPU is too old. 
-
-### Building docker image
-
-If you need to test changes as a docker image, you can build easily as follows:
+Prebuilt images are not published yet, so build the engine first and then this API on top of it.
 
 ```
-docker build -t my_nodeodx_image --no-cache .
+git clone https://github.com/AIDroneMap/aidm.git
+git clone https://github.com/AIDroneMap/aidm-api.git
+
+docker build -t aidm aidm
+docker build --build-arg FROM_REPO=aidm -t aidm-api aidm-api
+
+docker run -p 3000:3000 aidm-api
 ```
 
-Run as follows:
+Open http://127.0.0.1:3000, add some images and press **Start Task**.
+
+### GPU
+
+With an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html):
 
 ```
-docker run -p 3000:3000 mynodeodx &
+docker build -f aidm/gpu.Dockerfile -t aidm:gpu aidm
+docker build -f aidm-api/Dockerfile.gpu --build-arg FROM_REPO=aidm:gpu -t aidm-api:gpu aidm-api
+
+docker run -p 3000:3000 --gpus all aidm-api:gpu
 ```
 
+### Keeping results
 
-### Testing alternative ODX images through NodeODX
-
-In order to test alternative docker images in NodeODX, you will need to change the dockerfile for NodeODX to point to your ODX image. For example if you built an alternate ODX image as follows:
-
-```
-docker build -t my_odx_image --no-cache .
-```
-
-Then modify NodeODX's Dockerfile to point to the new ODX image in the first line:
+Results are stored in `/var/www/data` inside the container. Mount a folder there to keep them:
 
 ```
-FROM my_odx_image
-MAINTAINER Piero Toffanin <pt@masseranolabs.com>
-
-EXPOSE 3000
-...
+docker run -p 3000:3000 -v /path/to/storage:/var/www/data aidm-api
 ```
 
-Then build the NodeODX image:
+## Configuration
 
-```
-docker build -t my_nodeodx_image --no-cache .
-```
+Settings are passed as command-line flags after the image name, or in a JSON file with `--config`. Command-line flags take precedence. Useful ones:
 
-Finally run as follows:
+| Flag | Purpose |
+| --- | --- |
+| `--port` | Port to listen on (default 3000) |
+| `--token` | Require this token on every request |
+| `--max_images` | Reject tasks with more images than this |
+| `--parallel_queue_processing` | How many tasks run at the same time |
+| `--cleanup_tasks_after` | Minutes after which finished tasks are deleted |
+| `--webhook` | URL called when a task completes |
+| `--s3_endpoint`, `--s3_bucket` | Upload finished results to S3-compatible storage |
+| `--test` | Test mode: simulates the engine, for development without it |
 
-```
-docker run -p 3000:3000 my_nodeodx_image &
-```
+Run `docker run --rm aidm-api --help` for the full list, and see `config-default.json` for the file format.
 
-### Running rootless
+## API
 
-* A rootless alternative to Docker is using [Apptainer](https://apptainer.org/). In order to run NodeODX together with ClusterODX in rootless environments, for example on HPC, we need a rootless alternative to Docker, and that's where Apptainer comes in to play. From the Linux command line, cd into the NodeODX folder and run the following commands to host a NodeODX instance:
+The API specification is in [docs/index.adoc](docs/index.adoc), with a Swagger file in [docs/swagger.json](docs/swagger.json). It is the same as NodeODX API 2.x. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
 
-```
-apptainer build --sandbox node/ apptainer.def
-apptainer run --writable node/ 
-```
+Any change to the API must stay compatible: new fields and endpoints may be added, existing ones are not renamed or removed.
 
-`apptainer build --sandbox` requires you to have root permission to build this apptainer container. Make sure someone with root permission build this for you. You will need to build this apptainer container if you want to work with ClusterODX on the HPC. Check for [ClusterODX](https://github.com/WebODM/ClusterODX) for more instructions on using SLURM to set it up.
+## Planned changes
 
-An apptainer.def file can be built directly from the dockerfile as needed:
+Each item will be added in a compatible way, without breaking existing clients:
 
-```
-pip3 install spython
-spython recipe Dockerfile &> apptainer.def
-```
-
-## API Docs
-
-See the [API documentation page](https://github.com/WebODM/NodeODX/blob/master/docs/index.adoc).
-
-Some minor breaking changes exist from version `1.x` to `2.x` of the API. See [migration notes](https://github.com/WebODM/NodeODX/blob/master/MIGRATION.md).
-
-## Run Tasks from the Command Line
-
-You can use [CloudODX](https://github.com/WebODM/CloudODX) to run tasks with NodeODX from the command line.
-
-## Using an External Hard Drive
-
-If you want to store results on a separate drive, map the `/var/www/data` folder to the location of your drive:
-
-```bash
-docker run -p 3000:3000 -v /mnt/external_hd:/var/www/data webodm/nodeodx
-```
-
-This can be also used to access the computation results directly from the file system.
-
-## Using GPU Acceleration
-
-Since ODX has support [for GPU acceleration](https://github.com/https://github.com/WebODM/ODX#gpu-acceleration) you can use another base image for GPU processing. You need to use the `webodm/nodeodx:gpu` docker image instead of `webodm/nodeodx` and you need to pass the `--gpus all` flag:
-
-```bash
-docker run -p 3000:3000 --gpus all webodm/nodeodx:gpu
-```
-
-The GPU implementation is CUDA-based, so will only work on NVIDIA GPUs.
-
-If you have an NVIDIA card, you can test that docker is recognizing the GPU by running:
-
-```
-docker run --rm --gpus all nvidia/cuda:10.0-base nvidia-smi
-```
-
-If you see an output that looks like this:
-
-```
-Fri Jul 24 18:51:55 2020       
-+-----------------------------------------------------------------------------+
-| NVIDIA-SMI 440.82       Driver Version: 440.82       CUDA Version: 10.2     |
-|-------------------------------+----------------------+----------------------+
-| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
-```
-
-You're in good shape!
-
-See https://github.com/NVIDIA/nvidia-docker and https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker for information on docker/NVIDIA setup.
-
-### Windows Bundle
-
-NodeODX can run as a self-contained executable on Windows without the need for additional dependencies (except for [ODX](https://github.com/https://github.com/WebODM/ODX) which needs to be installed separately). You can download the latest `nodeodx-windows-x64.zip` bundle from the [releases](https://github.com/WebODM/NodeODX/releases) page. Extract the contents in a folder and run:
-
-```bash
-nodeodx.exe --odx_path c:\path\to\ODX
-```
-
-### Run it Natively
-
-If you are already running [ODX](https://github.com/https://github.com/WebODM/ODX) on Ubuntu natively you can follow these steps:
-
-1) Install Entwine: https://entwine.io/quickstart.html#installation
- 
-2) Install node.js, npm dependencies, 7zip and unzip:
-
-```bash
-sudo curl --silent --location https://deb.nodesource.com/setup_6.x | sudo bash -
-sudo apt-get install -y nodejs python-gdal p7zip-full unzip
-git clone https://github.com/WebODM/NodeODX
-cd NodeODX
-npm install
-```
-
-3) Start NodeODX
-
-```bash
-node index.js
-```
-
-You may need to specify your ODX project path to start the server:
-
-```
-node index.js --odx_path /home/username/ODX
-```
-
-If you want to start node ODX on a different port you can do the following:
-
-```
-node index.js --port 8000 --odx_path /home/username/ODX
-```
-
-For other command line options you can run:
-
-```
-node index.js --help
-```
-
-You can also specify configuration values via a JSON file:
-
-```
-node index.js --config config.default.json
-```
-
-Command line arguments always take precedence over the configuration file.
-
-### Run it using PM2
-
-The app can also be run as a background process using the [pm2 process manager](https://github.com/Unitech/pm2), which can also assist you with system startup scripts and process monitoring.
-
-To install pm2, run (using `sudo` if required):
-```shell
-npm install pm2 -g
-```
-The app can then be started using
-```shell
-pm2 start processes.json
-```
-To have pm2 started on OS startup run
-```shell
-pm2 save
-pm2 startup
-```
-and then run the command as per the instructions that prints out. If that command errors then you may have to specify the system (note that systemd should be used on CentOS 7). Note that if the process is not running as root (recommended) you will need to change `/etc/init.d/pm2-init.sh` to set `export PM2_HOME="/path/to/user/home/.pm2"`, as per [these instructions](
-http://www.buildsucceeded.com/2015/solved-pm2-startup-at-boot-time-centos-7-red-hat-linux/)
-
-You can monitor the process using `pm2 status`.
-
-### Test Mode
-
-If you want to make a contribution, but don't want to setup ODX, or perhaps you are working on a Windows machine, or if you want to run automated tests, you can turn test mode on:
-
-```
-node index.js --test
-```
-
-While in test mode all calls to ODX code will be simulated (see the /tests directory for the mock data that is returned).
-
-### Test Images
-
-You can find some test drone images [here](https://github.com/dakotabenjamin/odm_data).
-
-## What if I need more functionality?
-
-NodeODX is meant to be a lightweight API. If you are looking for a more comprehensive solution to drone mapping, check out [WebODM](https://github.com/WebODM/WebODM), which uses NodeODX for processing.
+- **Structured progress:** progress events per processing stage, instead of a single percentage.
+- **Result manifest:** a clear status for every output file.
+- **Resources known in advance:** an estimate of memory, CPU and time before a task starts.
+- **S3-compatible storage for task inputs and intermediate stages.** Finished results can already be uploaded to S3 today (see `--s3_endpoint` in `--help`).
+- **A maintained runtime:** the image currently uses Node.js 14, which no longer receives security updates.
 
 ## Contributing
 
-Make a pull request for small contributions. For big contributions, please open a discussion first. Please use ES6 syntax while writing new Javascript code so that we can keep the code base uniform.
+Contributions are welcome. Read the [contributing guide](https://github.com/AIDroneMap/.github/blob/main/CONTRIBUTING.md) first. Every commit needs a DCO sign-off (`git commit -s`).
 
+## Licence
+
+AIDM API is licensed under the [GNU Affero General Public License v3.0](LICENSE), the same licence as NodeODX. If you run a modified version as a network service, you must offer its source code to the users of that service. The [SOURCE](SOURCE) file says where to find it.
+
+Copyright notices from NodeODX, NodeODM and their contributors are kept as they are.
+
+## Credits
+
+AIDM API exists thanks to [NodeODX](https://github.com/WebODM/NodeODX) by the [WebODM](https://github.com/WebODM) maintainers, which continues [NodeODM](https://github.com/OpenDroneMap/NodeODM) from [OpenDroneMap](https://github.com/OpenDroneMap).
+
+AIDM API is an independent project. It is not affiliated with or endorsed by WebODM or OpenDroneMap.
+
+AIDroneMap is maintained by [Dimitri Albino](https://github.com/DimitriAlbino) and sponsored by [ITALDRONI](https://italdroni.it).
