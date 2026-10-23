@@ -18,6 +18,7 @@ AIDM API now runs on Bun and ships as one compiled executable. API behaviour is 
 - Compiled builds do not read `.env` or `bunfig.toml` from the working directory, like Node.js 14.
 - Errors for invalid JSON use Bun's wording. This covers an invalid `options` field on `POST /task/new`, and an invalid JSON body on `POST /task/cancel`, `/task/remove` and `/task/restart`. For example, `{"error": "Unexpected token n in JSON at position 1"}` is now `{"error": "JSON Parse error: Expected '}'"}`. The response shape and status code are the same.
 - The API `version` is `2.6.0`. `services/nodeodx.service` starts `/www/aidm-api`.
+- Each release has archives for linux-x64, linux-arm64 and windows-x64, each with the executable and the files it needs, plus a `SHA256SUMS` file. On Windows, only test mode works today.
 
 ### Fixed
 
