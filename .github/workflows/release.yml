@@ -1,7 +1,8 @@
-# Builds, tests and publishes the AIDM API images.
+# Builds, tests and publishes the AIDM API images and executables.
 #
 # A v* tag push publishes ghcr.io/aidronemap/aidm-api:<version>, :latest,
-# :<version>-gpu and :gpu, then opens a draft GitHub release. The images build
+# :<version>-gpu and :gpu, then opens a draft GitHub release with the
+# executable archives for linux-x64, linux-arm64 and windows-x64 attached. The images build
 # on the published AIDM engine images named by FROM_REPO in Dockerfile and
 # Dockerfile.gpu, so the aidm release must be published first.
 #
@@ -135,6 +136,146 @@ jobs:
             echo "cpu-base=$cpu"
             echo "gpu-base=$gpu"
           } >> "$GITHUB_OUTPUT"
+
+  # Builds every archive once, on Linux. Does not need the base images, so it
+  # runs before the aidm release is public.
+  executables:
+    name: Build executables
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check that every Bun pin names the same version
+        run: scripts/check-bun-pins.sh
+
+      # From the Bun release on GitHub, checked against scripts/bun-sha256sums.txt
+      - name: Download Bun
+        run: |
+          for platform in linux-x64 linux-aarch64 windows-x64; do
+            scripts/get-bun.sh "$platform" "$RUNNER_TEMP/bun/$platform"
+          done
+          echo "$RUNNER_TEMP/bun/linux-x64" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --production
+
+      - name: Unit tests
+        run: bun test tests/unit
+
+      # Each target uses the checked Bun binary for its platform, so Bun
+      # downloads nothing while compiling
+      - name: Build archives
+        run: |
+          scripts/package.sh --bun-binary "$RUNNER_TEMP/bun/linux-x64/bun" linux-x64 dist
+          scripts/package.sh --bun-binary "$RUNNER_TEMP/bun/linux-aarch64/bun" linux-arm64 dist
+          scripts/package.sh --bun-binary "$RUNNER_TEMP/bun/windows-x64/bun.exe" windows-x64 dist
+          cd dist
+          sha256sum aidm-api-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: executables
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Runs each archive on its own platform. The runners have no engine, so the
+  # executable runs in test mode. Plain --powercycle, which asks the engine for
+  # its options, runs when the images are built.
+  executables-test:
+    name: Test ${{ matrix.platform }} executable
+    needs: executables
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            bun: linux-x64
+            exe: aidm-api
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+            bun: linux-aarch64
+            exe: aidm-api
+          - platform: windows-x64
+            runner: windows-latest
+            bun: windows-x64
+            exe: aidm-api.exe
+    defaults:
+      run:
+        shell: bash
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      EXE: ${{ matrix.exe }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: executables
+          path: dist
+
+      - name: Check the archive checksums
+        working-directory: dist
+        run: sha256sum -c SHA256SUMS
+
+      - name: Unpack (Linux)
+        if: runner.os == 'Linux'
+        run: tar -xzf dist/aidm-api-*-"$PLATFORM".tar.gz -C "$RUNNER_TEMP"
+
+      - name: Unpack (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Expand-Archive -Path (Get-Item dist/aidm-api-*-windows-x64.zip) -DestinationPath $env:RUNNER_TEMP
+
+      - name: Find the unpacked folder
+        run: |
+          temp="$RUNNER_TEMP"
+          if command -v cygpath > /dev/null; then temp=$(cygpath -u "$temp"); fi
+          app=$(ls -d "$temp"/aidm-api-*-"$PLATFORM")
+          echo "APP=$app" >> "$GITHUB_ENV"
+          ls -la "$app"
+
+      # The images install the same tools
+      - name: Install unzip and 7z (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y unzip p7zip-full
+
+      - name: Show the zip tools on the PATH
+        run: |
+          for tool in unzip 7z; do
+            echo "$tool: $(command -v "$tool" || echo missing)"
+          done
+
+      - name: Download Bun to run the harness
+        run: scripts/get-bun.sh "${{ matrix.bun }}" "$RUNNER_TEMP/bun"
+
+      - name: Power cycle
+        run: |
+          cd "$APP"
+          ./"$EXE" --test --powercycle
+
+      - name: Compatibility harness
+        run: |
+          bun="$RUNNER_TEMP/bun/bun"
+          if [ "$RUNNER_OS" = "Windows" ]; then bun="$RUNNER_TEMP/bun/bun.exe"; fi
+          "$bun" tests/compat/run.js --app "$APP" -- "./$EXE"
 
   build:
     name: ${{ matrix.name }}
@@ -341,7 +482,7 @@ jobs:
 
   release:
     name: Draft release
-    needs: [check, manifest]
+    needs: [check, manifest, executables-test]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -352,6 +493,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Download archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: executables
+          path: dist
 
       # Creates or updates a draft. A published release is never touched.
       - name: Create draft release
@@ -386,6 +533,14 @@ jobs:
             echo "| --- | --- |"
             echo "| \`$IMAGE:$VERSION\` (amd64, arm64) | \`$CPU_DIGEST\` |"
             echo "| \`$IMAGE:$VERSION-gpu\` (amd64) | \`$GPU_DIGEST\` |"
+            echo
+            echo "### Executables"
+            echo
+            echo "One executable per platform, with the files it needs. Check the downloads with \`SHA256SUMS\`."
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
           } > notes.md
 
           if is_draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2> /dev/null); then
@@ -397,3 +552,6 @@ jobs:
           else
             gh release create "$tag" --draft --verify-tag --title "AIDM API $VERSION" --notes-file notes.md
           fi
+
+          # Only reached for a draft
+          gh release upload "$tag" dist/aidm-api-* dist/SHA256SUMS --clobber
