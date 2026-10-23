@@ -83,7 +83,7 @@ cd aidm-api-<version>-linux-x64
 ./aidm-api --odx_path /path/to/aidm
 ```
 
-On Windows, only test mode works today, because there is no Windows engine: run `aidm-api.exe --test`. Uploading zip files needs `unzip` or `7z` on the `PATH`. Without them, the API cannot extract zip files.
+On Windows, only test mode works today, because there is no Windows engine: run `aidm-api.exe --test`. Install `unzip` and `7z` and put them on the `PATH`. Without them, uploading a zip file crashes the server ([#9](https://github.com/AIDroneMap/aidm-api/issues/9)), and downloading `all.zip` right after a task completes can fail ([#17](https://github.com/AIDroneMap/aidm-api/issues/17)).
 
 To build an archive yourself, run `bun install --frozen-lockfile --production`, then `scripts/package.sh linux-x64 dist`.
 
