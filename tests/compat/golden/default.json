@@ -90,7 +90,7 @@
         "access-control-allow-origin": "*"
       },
       "body": {
-        "version": "2.5.0",
+        "version": "<version>",
         "taskQueueCount": 0,
         "totalMemory": "<number>",
         "availableMemory": "<number>",
@@ -4265,7 +4265,7 @@
         "access-control-allow-origin": "*"
       },
       "body": {
-        "version": "2.5.0",
+        "version": "<version>",
         "taskQueueCount": 0,
         "totalMemory": "<number>",
         "availableMemory": "<number>",
