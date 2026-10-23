@@ -494,9 +494,11 @@ function findOnPath(name) {
     throw new Error('Cannot find "' + name + '" on PATH');
 }
 
-// A copy of the environment in which unzip and 7z cannot be found. PATH is
-// empty on Linux and macOS. On Windows it holds only the system folders, which
-// have neither program.
+// A copy of the environment in which unzip and 7z cannot be found. On Linux
+// and macOS, PATH is one empty folder. It cannot be an empty string: Bun then
+// falls back to a default search path that includes /usr/bin. On Windows PATH
+// holds only the system folders, which have neither program.
+let emptyDir = null;
 function envWithoutTools() {
     const env = Object.assign({}, process.env);
     Object.keys(env).forEach(k => { if (k.toLowerCase() === 'path') delete env[k]; });
@@ -505,7 +507,11 @@ function envWithoutTools() {
         env.PATH = path.join(root, 'system32') + ';' + root;
         env.Path = env.PATH;
     } else {
-        env.PATH = '';
+        if (!emptyDir) {
+            emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aidm-compat-empty-'));
+            process.on('exit', () => { try { fs.rmdirSync(emptyDir); } catch (e) { /* ignore */ } });
+        }
+        env.PATH = emptyDir;
     }
     return env;
 }
