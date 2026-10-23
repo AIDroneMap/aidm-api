@@ -25,7 +25,7 @@ This repository covers a single machine only. Scheduling across machines and clo
 | `tests/` | Sample engine outputs used by test mode |
 | `Dockerfile`, `Dockerfile.gpu` | Images built on top of the engine image (`FROM_REPO` build argument) |
 
-Windows files inherited from NodeODX (`scripts/winbundle.js`, `*.bat`) are not maintained. Do not edit them; they will be removed.
+Windows batch files inherited from NodeODX (`*.bat`) are not maintained. Do not edit them; they will be removed.
 
 ## Workflow
 
