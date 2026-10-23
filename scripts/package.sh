@@ -103,7 +103,7 @@ copy_tracked() {
     local path
     while IFS= read -r -d '' path; do
         case "$path" in
-            tests/compat/*) continue ;;
+            tests/compat/*|tests/unit/*) continue ;;
         esac
         mkdir -p "$stage/$(dirname "$path")"
         cp "$path" "$stage/$path"
