@@ -69,6 +69,24 @@ scripts/build.sh dist/aidm-api
 
 The result is one executable with no runtime to install. It needs these files next to it: `config-default.json`, `public/`, `helpers/`, `scripts/` and `docs/swagger.json`, plus `tests/` for test mode. The working directory must contain `tmp/` and `data/`, because the API writes there. A compiled executable does not read `.env` or `bunfig.toml`. On x64 it needs a CPU with SSE4.2 (Nehalem, 2008 or newer).
 
+### Release archives
+
+Each release has an archive for Linux x64, Linux arm64 and Windows x64: `aidm-api-<version>-linux-x64.tar.gz`, `aidm-api-<version>-linux-arm64.tar.gz` and `aidm-api-<version>-windows-x64.zip`. `SHA256SUMS` lists their checksums.
+
+An archive has one folder with the executable (`aidm-api`, or `aidm-api.exe` on Windows), `config-default.json`, `public/`, `helpers/`, `scripts/postprocess.sh`, `docs/swagger.json`, the sample outputs in `tests/`, empty `tmp/` and `data/` folders, `LICENSE`, `SOURCE` and `THIRD-PARTY-NOTICES.txt`. The notices file has the licences of Bun and of every npm package inside the executable.
+
+Unpack it, then start it from that folder. You need an installed AIDM engine:
+
+```
+tar xzf aidm-api-<version>-linux-x64.tar.gz
+cd aidm-api-<version>-linux-x64
+./aidm-api --odx_path /path/to/aidm
+```
+
+On Windows, only test mode works today, because there is no Windows engine: run `aidm-api.exe --test`. Uploading zip files needs `unzip` or `7z` on the `PATH`. Without them, the API cannot extract zip files.
+
+To build an archive yourself, run `bun install --frozen-lockfile --production`, then `scripts/package.sh linux-x64 dist`.
+
 ### Keeping results
 
 Results are stored in `/var/www/data` inside the container. Mount a folder there to keep them:
