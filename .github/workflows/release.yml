@@ -9,6 +9,8 @@
 #   gh workflow run release.yml -f publish=false
 # Publish again from an existing tag, for example after a failed run:
 #   gh workflow run release.yml --ref v2.5.0 -f publish=true
+# Test the build on the upstream ODX images, before the aidm release is public:
+#   gh workflow run release.yml --ref <branch> -f publish=false -f base=upstream
 
 name: Release
 
@@ -22,6 +24,13 @@ on:
         description: Push the images. Needs a tag ref. When false, build and test only.
         type: boolean
         default: false
+      base:
+        description: Base engine images. "upstream" builds on WebODM's ODX images, for dry runs before the aidm release is public. It never publishes.
+        type: choice
+        options:
+          - aidm
+          - upstream
+        default: aidm
 
 permissions:
   contents: read
@@ -43,6 +52,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       publish: ${{ steps.version.outputs.publish }}
       engine-ref: ${{ steps.base.outputs.engine-ref }}
+      cpu-base: ${{ steps.base.outputs.cpu-base }}
+      gpu-base: ${{ steps.base.outputs.gpu-base }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,9 +93,24 @@ jobs:
       # Checked without logging in, so a private base image fails here too
       - name: Check that the base images are published
         id: base
+        env:
+          BASE_INPUT: ${{ inputs.base }}
+          PUBLISH: ${{ steps.version.outputs.publish }}
         run: |
           cpu=$(sed -n 's/^ARG FROM_REPO=//p' Dockerfile)
           gpu=$(sed -n 's/^ARG FROM_REPO=//p' Dockerfile.gpu)
+          engine_ref="v${cpu##*:}"
+
+          # WebODM's ODX images, pinned. Only for dry runs.
+          if [ "$BASE_INPUT" = "upstream" ]; then
+            if [ "$PUBLISH" = "true" ]; then
+              echo "::error::base=upstream is for dry runs only. Run it with publish=false."
+              exit 1
+            fi
+            cpu="webodm/odx:latest@sha256:4fdd3e36c016e3221cdb2b74dd05ed54d556e375fb1f228fabb42cad524b4ff5"
+            gpu="webodm/odx:gpu@sha256:cdbf29c1e8f498f12b957ec7b686efad7db043b144e2ce445bd3bd9eac2f09c5"
+            engine_ref="master"
+          fi
           echo "Base images: $cpu and $gpu"
 
           missing() {
@@ -104,7 +130,11 @@ jobs:
           done
 
           # The smoke test script comes from the aidm release the base image belongs to
-          echo "engine-ref=v${cpu##*:}" >> "$GITHUB_OUTPUT"
+          {
+            echo "engine-ref=$engine_ref"
+            echo "cpu-base=$cpu"
+            echo "gpu-base=$gpu"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: ${{ matrix.name }}
@@ -121,15 +151,18 @@ jobs:
           - name: cpu-amd64
             runner: ubuntu-latest
             dockerfile: Dockerfile
+            base: cpu
             platform: linux/amd64
           - name: cpu-arm64
             runner: ubuntu-24.04-arm
             dockerfile: Dockerfile
+            base: cpu
             platform: linux/arm64
           # The runner has no GPU, so the smoke test runs this image on the CPU
           - name: gpu-amd64
             runner: ubuntu-latest
             dockerfile: Dockerfile.gpu
+            base: gpu
             platform: linux/amd64
     steps:
       - name: Checkout
@@ -183,6 +216,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
+          build-args: FROM_REPO=${{ matrix.base == 'gpu' && needs.check.outputs.gpu-base || needs.check.outputs.cpu-base }}
           provenance: false
           load: true
           tags: aidm-api-smoke:${{ matrix.name }}
@@ -209,6 +243,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
+          build-args: FROM_REPO=${{ matrix.base == 'gpu' && needs.check.outputs.gpu-base || needs.check.outputs.cpu-base }}
           provenance: false
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
