@@ -1,0 +1,271 @@
+[
+  {
+    "step": "task new (hook answers 200)",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "hook ok"
+          },
+          "files": [
+            "images: w_0001.JPG (301 bytes)",
+            "images: w_0002.JPG (302 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>"
+      }
+    }
+  },
+  {
+    "step": "hook calls for task 1",
+    "request": {
+      "note": "number of POST requests received"
+    },
+    "response": {
+      "count": 1
+    }
+  },
+  {
+    "step": "hook request 1 of task 1",
+    "request": {
+      "method": "POST",
+      "path": "/hook",
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": {
+        "json": {
+          "uuid": "<uuid-1>",
+          "name": "hook ok",
+          "dateCreated": "<date>",
+          "processingTime": "<number>",
+          "status": {
+            "code": 40
+          },
+          "options": [
+            {
+              "name": "pc-ept",
+              "value": true
+            },
+            {
+              "name": "cog",
+              "value": true
+            },
+            {
+              "name": "gltf",
+              "value": true
+            }
+          ],
+          "imagesCount": 2,
+          "progress": 100,
+          "images": [
+            {
+              "altitude": 198.609,
+              "camera_make": "DJI",
+              "camera_model": "FC300S",
+              "ccd_width": 6.16,
+              "filename": "DJI_0028.JPG",
+              "focal_length": 3.61,
+              "focal_length_px": 2344.155844155844,
+              "height": 2250,
+              "latitude": 46.842521250000004,
+              "longitude": -91.99420961111112,
+              "make_model": "dji fc300s",
+              "path_file": "/datasets/brighton/images/DJI_0028.JPG",
+              "width": 4000
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200
+    }
+  },
+  {
+    "step": "task new (hook answers 500, then 200)",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "hook retry"
+          },
+          "files": [
+            "images: w2_0001.JPG (301 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>"
+      }
+    }
+  },
+  {
+    "step": "hook calls for task 2",
+    "request": {
+      "note": "number of POST requests received within the wait"
+    },
+    "response": {
+      "count": 2
+    }
+  },
+  {
+    "step": "hook request 1 of task 2",
+    "request": {
+      "method": "POST",
+      "path": "/hook",
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": {
+        "json": {
+          "uuid": "<uuid-2>",
+          "name": "hook retry",
+          "dateCreated": "<date>",
+          "processingTime": "<number>",
+          "status": {
+            "code": 40
+          },
+          "options": [
+            {
+              "name": "pc-ept",
+              "value": true
+            },
+            {
+              "name": "cog",
+              "value": true
+            },
+            {
+              "name": "gltf",
+              "value": true
+            }
+          ],
+          "imagesCount": 1,
+          "progress": 100,
+          "images": [
+            {
+              "altitude": 198.609,
+              "camera_make": "DJI",
+              "camera_model": "FC300S",
+              "ccd_width": 6.16,
+              "filename": "DJI_0028.JPG",
+              "focal_length": 3.61,
+              "focal_length_px": 2344.155844155844,
+              "height": 2250,
+              "latitude": 46.842521250000004,
+              "longitude": -91.99420961111112,
+              "make_model": "dji fc300s",
+              "path_file": "/datasets/brighton/images/DJI_0028.JPG",
+              "width": 4000
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 500
+    }
+  },
+  {
+    "step": "hook request 2 of task 2",
+    "request": {
+      "method": "POST",
+      "path": "/hook",
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": {
+        "json": {
+          "uuid": "<uuid-2>",
+          "name": "hook retry",
+          "dateCreated": "<date>",
+          "processingTime": "<number>",
+          "status": {
+            "code": 40
+          },
+          "options": [
+            {
+              "name": "pc-ept",
+              "value": true
+            },
+            {
+              "name": "cog",
+              "value": true
+            },
+            {
+              "name": "gltf",
+              "value": true
+            }
+          ],
+          "imagesCount": 1,
+          "progress": 100,
+          "images": [
+            {
+              "altitude": 198.609,
+              "camera_make": "DJI",
+              "camera_model": "FC300S",
+              "ccd_width": 6.16,
+              "filename": "DJI_0028.JPG",
+              "focal_length": 3.61,
+              "focal_length_px": 2344.155844155844,
+              "height": 2250,
+              "latitude": 46.842521250000004,
+              "longitude": -91.99420961111112,
+              "make_model": "dji fc300s",
+              "path_file": "/datasets/brighton/images/DJI_0028.JPG",
+              "width": 4000
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200
+    }
+  },
+  {
+    "step": "task list",
+    "request": {
+      "method": "GET",
+      "path": "/task/list"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": [
+        {
+          "uuid": "<uuid-1>"
+        },
+        {
+          "uuid": "<uuid-2>"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,274 @@
+[
+  {
+    "step": "info",
+    "request": {
+      "method": "GET",
+      "path": "/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "version": "<version>",
+        "taskQueueCount": 0,
+        "totalMemory": "<number>",
+        "availableMemory": "<number>",
+        "cpuCores": "<number>",
+        "maxImages": 1,
+        "maxParallelTasks": 1,
+        "engineVersion": "?",
+        "engine": "odx",
+        "upstreamVersion": "NodeODX 2.4.0",
+        "engineUpstreamVersion": "?"
+      }
+    }
+  },
+  {
+    "step": "task new: one image",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "one"
+          },
+          "files": [
+            "images: l_0001.JPG (301 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>"
+      }
+    }
+  },
+  {
+    "step": "info of task with one image",
+    "request": {
+      "method": "GET",
+      "path": "/task/<uuid-1>/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>",
+        "name": "one",
+        "dateCreated": "<date>",
+        "processingTime": "<number>",
+        "status": {
+          "code": 40
+        },
+        "options": [
+          {
+            "name": "pc-ept",
+            "value": true
+          },
+          {
+            "name": "cog",
+            "value": true
+          },
+          {
+            "name": "gltf",
+            "value": true
+          }
+        ],
+        "imagesCount": 1,
+        "progress": 100
+      }
+    }
+  },
+  {
+    "step": "task new: two images",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "two"
+          },
+          "files": [
+            "images: l_0001.JPG (301 bytes)",
+            "images: l_0002.JPG (302 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "error": "2 images uploaded, but this node can only process up to 1."
+      }
+    }
+  },
+  {
+    "step": "chunked: init",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/init",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "two chunked"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>"
+      }
+    }
+  },
+  {
+    "step": "chunked: upload 1",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/upload/<uuid-2>",
+      "body": {
+        "multipart": {
+          "fields": {},
+          "files": [
+            "images: m_0001.JPG (301 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "success": true
+      }
+    }
+  },
+  {
+    "step": "chunked: upload 2",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/upload/<uuid-2>",
+      "body": {
+        "multipart": {
+          "fields": {},
+          "files": [
+            "images: m2_0001.JPG (301 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "success": true
+      }
+    }
+  },
+  {
+    "step": "chunked: commit",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/commit/<uuid-2>"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>"
+      }
+    }
+  },
+  {
+    "step": "chunked: info",
+    "request": {
+      "method": "GET",
+      "path": "/task/<uuid-2>/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>",
+        "name": "two chunked",
+        "dateCreated": "<date>",
+        "processingTime": -1,
+        "status": {
+          "code": 30,
+          "errorMessage": "2 images uploaded, but this node can only process up to 1."
+        },
+        "options": [],
+        "imagesCount": 2,
+        "progress": 0
+      }
+    }
+  },
+  {
+    "step": "task list",
+    "request": {
+      "method": "GET",
+      "path": "/task/list"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": [
+        {
+          "uuid": "<uuid-1>"
+        },
+        {
+          "uuid": "<uuid-2>"
+        }
+      ]
+    }
+  }
+]
