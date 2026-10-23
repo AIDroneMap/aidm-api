@@ -277,9 +277,19 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then bun="$RUNNER_TEMP/bun/bun.exe"; fi
           "$bun" tests/compat/run.js --app "$APP" -- "./$EXE"
 
+      # The x64 executables must run on CPUs without AVX (SSE4.2, Nehalem).
+      # QEMU emulates such a CPU and stops on any AVX instruction, so a Bun
+      # update that raises the floor fails here.
+      - name: Compatibility harness on an emulated CPU without AVX (Linux x64)
+        if: matrix.platform == 'linux-x64'
+        run: |
+          sudo apt-get install -y qemu-user
+          "$RUNNER_TEMP/bun/bun" tests/compat/run.js --app "$APP" -- "$(command -v qemu-x86_64)" -cpu Nehalem ./aidm-api
+
       # A clean Windows machine has neither tool. The runner has both (Git's
       # unzip, Chocolatey's 7z), so run again with only the system folders on
-      # the PATH. The harness skips the cases that need unzip or 7z (#8).
+      # the PATH. The harness skips zip-input, whose golden file holds the
+      # tools' own messages, and still runs zip-input-no-tools (#8).
       # It does not block the release yet: without 7z a task completes before
       # all.zip is fully written (#17), which Windows' slower disk exposes.
       - name: Compatibility harness without unzip and 7z (Windows)
