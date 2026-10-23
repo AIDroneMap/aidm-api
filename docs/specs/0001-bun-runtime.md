@@ -42,6 +42,17 @@ None of the dependencies has to change to run on Bun:
 - `node-unzip-2` is not only used by `scripts/winbundle.js`. `libs/ziputils.js` uses it to extract zip files when neither `unzip` nor `7z` is installed. On that path the server crashes with `Callback was already called` from `async`, on Node.js 14 and on Bun alike. The images install `unzip`, so they never take this path. A standalone executable on a machine without `unzip` and `7z` does, which includes Windows today. This is an existing bug and gets its own issue.
 - Without `7z`, task archives are built with `archiver` instead. The API logs a warning and works.
 
+### Invalid JSON errors are worded by the engine
+
+Found by the compatibility harness after the spike. An invalid `options` field on `/task/new`, or an invalid JSON body on `/task/cancel`, `/task/remove` or `/task/restart`, returns the JavaScript engine's parse error to the client:
+
+| Input | Node.js 14 (V8 8.4) | Bun 1.4.4 (JavaScriptCore) |
+| --- | --- | --- |
+| `options={not json` | `Unexpected token n in JSON at position 1` | `JSON Parse error: Expected '}'` |
+| body `{"uuid": ` | `Unexpected end of JSON input` | `JSON Parse error: Unexpected EOF` |
+
+Clients can read this text, so it must not change. V8 8.4 builds these messages with a few fixed rules. A small module can find the same error position and build the same message. It was compared with Node.js 14.21.3 on about 1.2 million invalid inputs, with no difference.
+
 ### `__dirname` in a compiled executable
 
 In an executable built by `bun build --compile`, `__dirname` and `__filename` are the build machine's source paths, written into the binary as strings. They are not `/$bunfs/root`. I checked this with a small probe and with the API itself: an executable compiled in `/tmp/build-src` failed at startup with `Log directory '/tmp/build-src' cannot be written to` once that folder was deleted. On the build machine it works, because the folder still exists, so a test there can pass by accident.
@@ -100,6 +111,10 @@ No dependency changes are needed to run on Bun, so none are made in this work. E
 - `bun.lock` is committed. Every install in the Dockerfiles and CI uses `bun install --frozen-lockfile`, so builds use the locked versions. The `^` ranges in `package.json` stay as they are. The lock file pins them, and rewriting them would add 15 dependency changes to a runtime change.
 
 Dev tooling (`Gruntfile.js`, `docs/generateSwaggerAPI.js`, `nodemon`) is not shipped. It stays as it is. `bun install` still installs it for development, and `--production` leaves it out of builds.
+
+### Invalid JSON errors
+
+`libs/jsonErrors.js` builds the Node.js 14 message for invalid JSON. It follows V8 8.4's JSON parser to find where the input goes wrong and picks the same wording. `JSON.parse` still does the parsing. It is used for the `options` field and, in the error handler, for invalid JSON bodies (body-parser keeps the raw body on the error). `tests/unit` checks it against 2,332 inputs recorded with Node.js 14.21.3.
 
 ### Finding resource files
 
@@ -196,7 +211,9 @@ Made while the maintainer was away. Each can be revisited in review.
 11. **The image entry point changes** from `/usr/bin/node /var/www/index.js` to `/var/www/aidm-api`. Flags passed to `docker run` work as before. Anyone who overrides the entry point with `node index.js` must switch to `/var/www/aidm-api`. The changelog says so.
 12. **Archive format.** `.tar.gz` for Linux keeps the executable bit, `.zip` for Windows.
 13. **The log file name stays `NodeODX.log`.** It comes from the `instance` config key.
-14. **CI dry runs before Monday.** The release workflow's first job checks that the AIDM 0.1.0 base images are public, and fails until they are. The executable jobs do not depend on it, so they run now. The image jobs are re-run once 0.1.0 is published.
+14. **Keep the Node.js 14 wording of invalid JSON errors** with `libs/jsonErrors.js`, instead of accepting Bun's wording. The brief asks for no API change, and the module is small and tested against Node.js 14. If you would rather accept the new wording, drop the module and re-record two golden steps.
+15. **The harness records the API version as `<version>`.** `/info` returns the version, which changes with every release. The harness checks that it looks like `1.2.3`.
+16. **CI dry runs before Monday.** The release workflow's first job checks that the AIDM 0.1.0 base images are public, and fails until they are. The executable jobs do not depend on it, so they run now. The image jobs are re-run once 0.1.0 is published.
 
 ## Issues to open
 
@@ -206,3 +223,4 @@ Made while the maintainer was away. Each can be revisited in review.
 - Upgrade or replace `busboy` 0.2, `systeminformation` 3.42, `archiver` 3, `node-unzip-2`, `uuid` 3, `rimraf` 2, `node-schedule` 1.
 - `contrib/` still describes the NodeODX setup.
 - Move dev tooling (`Gruntfile.js`, `nodemon`, `docs/generateSwaggerAPI.js`) to Bun or remove it.
+- Existing bugs the harness found, all the same on Node.js 14 and Bun: every error response is HTTP 200; the no-7z zip fallback calls `glob` without requiring it; an uploaded `.zip` other than `seed.zip` is deleted without being extracted; `console.warning` does not exist.
