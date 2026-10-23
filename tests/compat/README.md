@@ -81,4 +81,4 @@ The API unpacks zips with `unzip`, else `7z`, else a pure JavaScript fallback. T
 
 ## Runtime differences it caught
 
-Clients see the text of invalid-JSON errors (steps "task new error: options is not JSON" and "cancel malformed json"). That text comes from the JavaScript engine, so Bun worded it differently from Node.js 14. `libs/jsonErrors.js` now builds the Node.js 14 message itself, and `tests/unit` checks it against messages recorded with Node.js 14.
+Clients see the text of invalid-JSON errors (steps "task new error: options is not JSON" and "cancel malformed json"). That text comes from the JavaScript engine, so Bun words it differently from Node.js 14. The maintainer accepted Bun's wording for 2.6.0: these two steps were re-recorded with Bun, and the 2.6.0 changelog says so. The response shape and status code did not change. Every other step is still the Node.js 14 recording.

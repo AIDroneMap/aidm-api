@@ -20,7 +20,6 @@ const odmRunner = require('./odmRunner');
 const config = require('../config');
 const async = require('async');
 const assert = require('assert');
-const jsonErrors = require('./jsonErrors');
 const logger = require('./logger');
 
 let odmOptions = null;
@@ -182,7 +181,7 @@ module.exports = {
         assert(odmOptions !== null, "odmOptions is not set. Have you initialized odmOptions properly?");
 
         try{
-            if (typeof options === "string") options = jsonErrors.parse(options);
+            if (typeof options === "string") options = JSON.parse(options);
             if (!Array.isArray(options)) options = [];
             
             let result = [];
