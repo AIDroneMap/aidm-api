@@ -197,7 +197,8 @@ On Windows, the cases that need `unzip` are skipped when neither `unzip` nor `7z
 1. This spec.
 2. Compatibility harness and golden files, on `master`, still on Node.js 14.
 3. Switch to Bun: `bun.lock`, `libs/appRoot.js`, Dockerfiles, `apptainer.def`, service file, deleted Node.js files, docs, version `2.6.0`. Stacked on 2.
-4. Executables in CI: archive build, tests on three platforms, upload to the draft release. Stacked on 3.
+4. Zip files without `unzip` or `7z`: remove `node-unzip-2`, fail the task with a clear error. Stacked on 3. Added after the maintainer's review.
+5. Executables in CI: archive build, tests on three platforms, upload to the draft release. Stacked on 4.
 
 ## Decisions
 
