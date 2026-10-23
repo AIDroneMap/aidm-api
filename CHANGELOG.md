@@ -19,9 +19,14 @@ AIDM API now runs on Bun and ships as one compiled executable. API behaviour is 
 - Errors for invalid JSON use Bun's wording. This covers an invalid `options` field on `POST /task/new`, and an invalid JSON body on `POST /task/cancel`, `/task/remove` and `/task/restart`. For example, `{"error": "Unexpected token n in JSON at position 1"}` is now `{"error": "JSON Parse error: Expected '}'"}`. The response shape and status code are the same.
 - The API `version` is `2.6.0`. `services/nodeodx.service` starts `/www/aidm-api`.
 
+### Fixed
+
+- When neither `unzip` nor `7z` is installed, a task with a zip file (an upload or `zipurl`) now fails with the error "Could not extract .zip file, neither unzip nor 7z is installed". Before, the server crashed with "Callback was already called". The API also logs a warning at startup when both programs are missing. Fixes #9.
+
 ### Removed
 
 - `install_deps.sh`, `node.sh`, `processes.json` and `scripts/winbundle.js`. The executable replaces them.
+- The `node-unzip-2` dependency, which was the last fallback for zip files. Its dependencies `binary`, `buffers` (which had no licence), `chainsaw`, `fstream`, `match-stream`, `over`, `pullstream`, `slice-stream`, `setimmediate` and `traverse` go with it, and so do the packages that only they needed.
 
 ### Not changed
 
