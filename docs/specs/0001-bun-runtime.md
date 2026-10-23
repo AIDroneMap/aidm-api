@@ -213,7 +213,7 @@ Made while the maintainer was away. Each can be revisited in review.
 13. **The log file name stays `NodeODX.log`.** It comes from the `instance` config key.
 14. **Keep the Node.js 14 wording of invalid JSON errors** with `libs/jsonErrors.js`, instead of accepting Bun's wording. The brief asks for no API change, and the module is small and tested against Node.js 14. If you would rather accept the new wording, drop the module and re-record two golden steps.
 15. **The harness records the API version as `<version>`.** `/info` returns the version, which changes with every release. The harness checks that it looks like `1.2.3`.
-16. **CI dry runs before Monday.** The release workflow's first job checks that the AIDM 0.1.0 base images are public, and fails until they are. The executable jobs do not depend on it, so they run now. The image jobs are re-run once 0.1.0 is published.
+16. **CI dry runs before Monday.** The release workflow's first job checks that the AIDM 0.1.0 base images are public, and fails until they are. The executable jobs do not depend on it, so they run now. For the images, a new `base=upstream` option builds a dry run on WebODM's ODX images (pinned by digest) and runs the smoke test from `aidm` master. It refuses to publish. The image jobs are re-run on the AIDM base once 0.1.0 is published.
 
 ## Issues to open
 
