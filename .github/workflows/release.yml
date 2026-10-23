@@ -153,17 +153,23 @@ jobs:
             dockerfile: Dockerfile
             base: cpu
             platform: linux/amd64
+            smoke: true
           - name: cpu-arm64
             runner: ubuntu-24.04-arm
             dockerfile: Dockerfile
             base: cpu
             platform: linux/arm64
-          # The runner has no GPU, so the smoke test runs this image on the CPU
+            smoke: true
+          # The GPU image needs an NVIDIA GPU at run time, and GitHub runners
+          # have none. So CI only builds it and checks that it starts. Run the
+          # smoke test by hand on a machine with a GPU:
+          #   SMOKE_GPU=1 scripts/smoke-test.sh api <image>   (from the aidm repository)
           - name: gpu-amd64
             runner: ubuntu-latest
             dockerfile: Dockerfile.gpu
             base: gpu
             platform: linux/amd64
+            smoke: false
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -172,6 +178,7 @@ jobs:
 
       # Kept outside the workspace, so it does not end up in the build context
       - name: Download the aidm smoke test
+        if: matrix.smoke
         env:
           ENGINE_REF: ${{ needs.check.outputs.engine-ref }}
         run: |
@@ -222,7 +229,15 @@ jobs:
           tags: aidm-api-smoke:${{ matrix.name }}
 
       - name: Smoke test
+        if: matrix.smoke
         run: '"$RUNNER_TEMP/smoke-test.sh" api "aidm-api-smoke:$NAME"'
+        env:
+          NAME: ${{ matrix.name }}
+
+      # Starts the API, which asks the engine for its options, then exits
+      - name: Startup check
+        if: ${{ !matrix.smoke }}
+        run: docker run --rm "aidm-api-smoke:$NAME" --powercycle
         env:
           NAME: ${{ matrix.name }}
 
