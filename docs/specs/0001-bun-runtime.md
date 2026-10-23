@@ -51,7 +51,7 @@ Found by the compatibility harness after the spike. An invalid `options` field o
 | `options={not json` | `Unexpected token n in JSON at position 1` | `JSON Parse error: Expected '}'` |
 | body `{"uuid": ` | `Unexpected end of JSON input` | `JSON Parse error: Unexpected EOF` |
 
-Clients can read this text, so it must not change. V8 8.4 builds these messages with a few fixed rules. A small module can find the same error position and build the same message. It was compared with Node.js 14.21.3 on about 1.2 million invalid inputs, with no difference.
+Clients can read this text. A small module could rebuild the Node.js 14 wording (it matched Node.js 14.21.3 on about 1.2 million invalid inputs), but the maintainer chose to accept Bun's wording instead (decision 14). The response shape and status code stay the same.
 
 ### `__dirname` in a compiled executable
 
@@ -72,7 +72,8 @@ Files embedded with `--asset` can be read with `readFileSync`, but `createReadSt
 
 - A compiled executable loads `.env` and `bunfig.toml` from the working directory by default. Node.js 14 never did. A `.env` with `PORT` or `AWS_ACCESS_KEY_ID` would silently change the configuration, so builds pass `--no-compile-autoload-dotenv --no-compile-autoload-bunfig`.
 - Cross-compiling (`--target`) downloads the target runtime from the npm registry, with no checksum under our control. `--compile-executable-path <file>` uses a local Bun binary instead. CI downloads the release zips from GitHub, checks their SHA-256 against values in this repository, and passes them with that flag.
-- Since Bun 1.4, x64 has one binary with a Nehalem (SSE4.2) floor that picks AVX2 or AVX-512 code at run time. `bun-linux-x64.zip` and `bun-linux-x64-baseline.zip` hold byte-identical `bun` binaries (SHA-256 `10702245...`). The `-baseline` targets are aliases. The official `oven/bun` image installs the baseline zip on amd64.
+- Since Bun 1.4, x64 has one binary with a Nehalem (SSE4.2) floor that picks AVX2 or AVX-512 code at run time. `bun-linux-x64.zip` and `bun-linux-x64-baseline.zip` hold byte-identical `bun` binaries (SHA-256 `10702245...`), and so do `bun-windows-x64.zip` and `bun-windows-x64-baseline.zip` (`cb1d8e65...`). The `-baseline` targets are aliases. The official `oven/bun` image installs the baseline zip on amd64.
+- Checked under emulation with `qemu-x86_64 -cpu Nehalem`, a CPU with SSE4.2 but no AVX. The compiled API passed all 150 harness steps. Under `-cpu core2duo` (no SSE4.2) Bun stops with an illegal instruction. A control program built with AVX2 also stops with an illegal instruction under `-cpu Nehalem`, so the emulator does reject AVX2. The x64 executables need SSE4.2, not AVX2. CI repeats the Nehalem run for Linux x64.
 - Compiling the API takes under a second and gives an executable of about 117 MB (Linux x64).
 
 ### Files that assume Node.js
@@ -114,7 +115,11 @@ Dev tooling (`Gruntfile.js`, `docs/generateSwaggerAPI.js`, `nodemon`) is not shi
 
 ### Invalid JSON errors
 
-`libs/jsonErrors.js` builds the Node.js 14 message for invalid JSON. It follows V8 8.4's JSON parser to find where the input goes wrong and picks the same wording. `JSON.parse` still does the parsing. It is used for the `options` field and, in the error handler, for invalid JSON bodies (body-parser keeps the raw body on the error). `tests/unit` checks it against 2,332 inputs recorded with Node.js 14.21.3.
+The API returns Bun's own wording. The two affected golden steps are re-recorded with Bun, and the 2.6.0 changelog lists the change. Every other golden step is still the Node.js 14 recording.
+
+### Zip files without `unzip` or `7z`
+
+`node-unzip-2`, the last-resort zip extractor, crashed the server (#9) and pulled in `buffers@0.1.1`, which has no licence. It is removed, together with the packages only it used. When neither `unzip` nor `7z` is installed, a task with a zip file now fails with `Could not extract .zip file, neither unzip nor 7z is installed`, and the server keeps running. A unit test and a harness scenario (`zip-input-no-tools`) check it.
 
 ### Finding resource files
 
@@ -211,9 +216,11 @@ Made while the maintainer was away. Each can be revisited in review.
 11. **The image entry point changes** from `/usr/bin/node /var/www/index.js` to `/var/www/aidm-api`. Flags passed to `docker run` work as before. Anyone who overrides the entry point with `node index.js` must switch to `/var/www/aidm-api`. The changelog says so.
 12. **Archive format.** `.tar.gz` for Linux keeps the executable bit, `.zip` for Windows.
 13. **The log file name stays `NodeODX.log`.** It comes from the `instance` config key.
-14. **Keep the Node.js 14 wording of invalid JSON errors** with `libs/jsonErrors.js`, instead of accepting Bun's wording. The brief asks for no API change, and the module is small and tested against Node.js 14. If you would rather accept the new wording, drop the module and re-record two golden steps.
+14. **Accept Bun's wording of invalid JSON errors** (maintainer's decision, replacing a first version that rebuilt the Node.js 14 wording). The response shape and status code stay the same. The changelog lists the change.
 15. **The harness records the API version as `<version>`.** `/info` returns the version, which changes with every release. The harness checks that it looks like `1.2.3`.
-16. **CI dry runs before Monday.** The release workflow's first job checks that the AIDM 0.1.0 base images are public, and fails until they are. The executable jobs do not depend on it, so they run now. For the images, a new `base=upstream` option builds a dry run on WebODM's ODX images (pinned by digest) and runs the smoke test from `aidm` master. It refuses to publish. The image jobs are re-run on the AIDM base once 0.1.0 is published.
+16. **No `node-unzip-2`** (maintainer's decision). Without `unzip` or `7z`, a task with a zip file fails with a clear error instead of crashing the server.
+17. **The GPU image gets a startup check in CI, not the smoke test.** It needs an NVIDIA GPU at run time and GitHub runners have none. The job builds the image and runs it with `--powercycle`.
+18. **CI dry runs before Monday.** The release workflow's first job checks that the AIDM 0.1.0 base images are public, and fails until they are. The executable jobs do not depend on it, so they run now. For the images, a new `base=upstream` option builds a dry run on WebODM's ODX images (pinned by digest) and runs the smoke test from `aidm` master. It refuses to publish. The image jobs are re-run on the AIDM base once 0.1.0 is published.
 
 ## Issues to open
 
