@@ -1,0 +1,170 @@
+[
+  {
+    "step": "info at the start",
+    "request": {
+      "method": "GET",
+      "path": "/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "version": "<version>",
+        "taskQueueCount": 0,
+        "totalMemory": "<number>",
+        "availableMemory": "<number>",
+        "cpuCores": "<number>",
+        "maxImages": null,
+        "maxParallelTasks": 1,
+        "engineVersion": "?",
+        "engine": "odx",
+        "upstreamVersion": "NodeODX 2.4.0",
+        "engineUpstreamVersion": "?"
+      }
+    }
+  },
+  {
+    "step": "task new: zipurl without unzip or 7z",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "zipurl no tools",
+            "zipurl": "http://127.0.0.1:<port>/images.zip"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>"
+      }
+    }
+  },
+  {
+    "step": "info of zipurl without unzip or 7z",
+    "request": {
+      "method": "GET",
+      "path": "/task/<uuid-1>/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>",
+        "name": "zipurl no tools",
+        "dateCreated": "<date>",
+        "processingTime": -1,
+        "status": {
+          "code": 30,
+          "errorMessage": "Could not extract .zip file, neither unzip nor 7z is installed"
+        },
+        "options": [],
+        "imagesCount": 0,
+        "progress": 0
+      }
+    }
+  },
+  {
+    "step": "task new: seed.zip without unzip or 7z",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "seed zip no tools"
+          },
+          "files": [
+            "images: n_0001.JPG (301 bytes)",
+            "images: seed.zip (656 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>"
+      }
+    }
+  },
+  {
+    "step": "info of task with seed.zip without unzip or 7z",
+    "request": {
+      "method": "GET",
+      "path": "/task/<uuid-2>/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>",
+        "name": "seed zip no tools",
+        "dateCreated": "<date>",
+        "processingTime": -1,
+        "status": {
+          "code": 30,
+          "errorMessage": "Could not extract .zip file, neither unzip nor 7z is installed"
+        },
+        "options": [],
+        "imagesCount": 2,
+        "progress": 0
+      }
+    }
+  },
+  {
+    "step": "info at the end",
+    "request": {
+      "method": "GET",
+      "path": "/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "version": "<version>",
+        "taskQueueCount": 0,
+        "totalMemory": "<number>",
+        "availableMemory": "<number>",
+        "cpuCores": "<number>",
+        "maxImages": null,
+        "maxParallelTasks": 1,
+        "engineVersion": "?",
+        "engine": "odx",
+        "upstreamVersion": "NodeODX 2.4.0",
+        "engineUpstreamVersion": "?"
+      }
+    }
+  }
+]

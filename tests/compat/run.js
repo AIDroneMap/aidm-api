@@ -477,11 +477,63 @@ function resolveCommand(cmd, copyDir) {
     return cmd;
 }
 
+// Finds a program on the current PATH. A name with a path separator is returned as it is.
+function findOnPath(name) {
+    if (name.indexOf('/') !== -1 || name.indexOf('\\') !== -1) return name;
+    const win = process.platform === 'win32';
+    const names = win && !/\.[^.\\/]+$/.test(name) ? [name + '.exe', name] : [name];
+    const dirs = (process.env.PATH || process.env.Path || '').split(path.delimiter).filter(d => d.length);
+    for (const dir of dirs) {
+        for (const n of names) {
+            const full = path.join(dir, n);
+            try {
+                if (fs.statSync(full).isFile()) return full;
+            } catch (e) { /* not here */ }
+        }
+    }
+    throw new Error('Cannot find "' + name + '" on PATH');
+}
+
+// A copy of the environment in which unzip and 7z cannot be found. On Linux
+// and macOS, PATH is one empty folder. It cannot be an empty string: Bun then
+// falls back to a default search path that includes /usr/bin. On Windows PATH
+// holds only the system folders, which have neither program.
+let emptyDir = null;
+function envWithoutTools() {
+    const env = Object.assign({}, process.env);
+    Object.keys(env).forEach(k => { if (k.toLowerCase() === 'path') delete env[k]; });
+    if (process.platform === 'win32') {
+        const root = process.env.SystemRoot || process.env.SYSTEMROOT || 'C:\\Windows';
+        env.PATH = path.join(root, 'system32') + ';' + root;
+        env.Path = env.PATH;
+    } else {
+        if (!emptyDir) {
+            emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aidm-compat-empty-'));
+            process.on('exit', () => { try { fs.rmdirSync(emptyDir); } catch (e) { /* ignore */ } });
+        }
+        env.PATH = emptyDir;
+    }
+    return env;
+}
+
+// Removes the unzip and 7z programs that ship inside a Windows release folder
+function removeBundledTools(appDir) {
+    ['7z/7z.exe', 'unzip/unzip.exe'].forEach(f => {
+        try { fs.unlinkSync(path.join(appDir, 'apps', f)); } catch (e) { /* not there */ }
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Server process
 
-function startServer(command, copyDir, port, flags) {
+function startServer(command, copyDir, port, flags, noTools) {
     const full = resolveCommand(command, copyDir);
+    let env = process.env;
+    if (noTools) {
+        // Find the program first, because the new PATH cannot find it
+        full[0] = findOnPath(full[0]);
+        env = envWithoutTools();
+    }
     const args = full.slice(1).concat(['--test', '--port', String(port)], flags);
     const server = { lines: [], exited: false, exitInfo: null, child: null };
     const keep = chunk => {
@@ -490,7 +542,7 @@ function startServer(command, copyDir, port, flags) {
     };
     let child;
     try {
-        child = spawn(full[0], args, { cwd: copyDir, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+        child = spawn(full[0], args, { cwd: copyDir, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     } catch (e) {
         server.exited = true;
         server.exitInfo = 'spawn failed: ' + e.message;
@@ -893,6 +945,37 @@ scenarios.push({
     }
 });
 
+// The server runs with a PATH that has neither unzip nor 7z, on every machine.
+// A task with a zip file must fail with a clear error and the server must stay up.
+scenarios.push({
+    name: 'zip-input-no-tools',
+    noTools: true,
+    flags: () => [],
+    run: async function (c) {
+        const seed = buildZip([
+            { name: 'images/seed_0001.JPG', data: seededBytes('seed1', 400) },
+            { name: 'opensfm/note.txt', data: Buffer.from('seed note\n') }
+        ]);
+        await c.get('info at the start', '/info');
+
+        const zu = await c.newTask('task new: zipurl without unzip or 7z', '/task/new', {
+            fields: { name: 'zipurl no tools', zipurl: c.zipUrl('/images.zip') }
+        });
+        await c.waitFinal(zu);
+        await c.get('info of zipurl without unzip or 7z', taskPath(zu, '/info'));
+
+        const sd = await c.newTask('task new: seed.zip without unzip or 7z', '/task/new', {
+            fields: { name: 'seed zip no tools' },
+            files: c.images('n', 1).concat([{ field: 'images', name: 'seed.zip', data: seed }])
+        });
+        await c.waitFinal(sd);
+        await c.get('info of task with seed.zip without unzip or 7z', taskPath(sd, '/info'));
+
+        // The server must still answer
+        await c.get('info at the end', '/info');
+    }
+});
+
 scenarios.push({
     name: 'token',
     flags: () => ['--token', 'compat-secret'],
@@ -1071,8 +1154,9 @@ async function runScenario(sc, opts, env) {
     let server = null;
     try {
         copyApp(opts.appDir, copyDir);
+        if (sc.noTools) removeBundledTools(copyDir);
         const port = await freePort();
-        server = startServer(opts.command, copyDir, port, sc.flags(env));
+        server = startServer(opts.command, copyDir, port, sc.flags(env), !!sc.noTools);
         await waitReady(server, port);
         const ctx = makeContext(env, port);
         await sc.run(ctx);
@@ -1130,7 +1214,8 @@ async function main() {
     const tools = { unzip: hasTool('unzip', opts.appDir), sevenZ: hasTool('7z', opts.appDir) };
     console.log('Tools: unzip ' + (tools.unzip ? 'found' : 'missing') + ', 7z ' + (tools.sevenZ ? 'found' : 'missing'));
     const canUnzip = tools.unzip || tools.sevenZ;
-    if (opts.update && !(tools.unzip && tools.sevenZ)) {
+    // Scenarios that start the server without the tools do not need them on PATH
+    if (opts.update && !(tools.unzip && tools.sevenZ) && list.some(s => !s.noTools)) {
         console.error('Golden files must be recorded with both unzip and 7z on PATH.');
         process.exit(2);
     }
@@ -1153,7 +1238,7 @@ async function main() {
 
     for (const sc of list) {
         if (sc.needsUnzip && !canUnzip) {
-            const reason = 'neither unzip nor 7z is on PATH (the pure JavaScript fallback crashes the server, a known existing bug)';
+            const reason = 'neither unzip nor 7z is on PATH (the golden file holds the messages of the tools; zip-input-no-tools checks the case without them)';
             console.log('SKIP ' + sc.name + ': ' + reason);
             skipped.push(sc.name + ' (' + reason + ')');
             continue;
