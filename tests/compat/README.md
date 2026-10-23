@@ -2,16 +2,16 @@
 
 These tests check that the API answers the same way on every runtime (Node.js 14, Bun, a compiled Bun executable). They start the API in `--test` mode, call every endpoint in `docs/swagger.json`, and compare the responses with golden files.
 
-The harness is plain CommonJS with no dependencies. It runs unchanged on Node.js 14 and on Bun.
+The harness is plain CommonJS with no dependencies. It runs unchanged on Node.js 14 and on Bun. The golden files were recorded with Node.js 14.21.3, the runtime of AIDM API 2.5.0.
 
 ## Run
 
 ```
-node tests/compat/run.js --app <dir> [--update] [--only <scenario>] [--keep] -- <command> [args...]
+bun tests/compat/run.js --app <dir> [--update] [--only <scenario>] [--keep] -- <command> [args...]
 ```
 
 - `--app <dir>`: the folder that holds the runnable API. Today that is the repository root. Later it can be an unpacked release archive with a compiled executable.
-- `<command> [args...]`: how to start the API, for example `node index.js` or `./aidm-api` (or `aidm-api.exe`). If the first element is a relative path that exists inside the app copy, the harness uses that file. The harness adds `--test --port <free port>` and the flags of the scenario.
+- `<command> [args...]`: how to start the API, for example `bun index.js` or `./aidm-api` (or `aidm-api.exe`). If the first element is a relative path that exists inside the app copy, the harness uses that file. The harness adds `--test --port <free port>` and the flags of the scenario.
 - `--update`: write the golden files instead of comparing. Record them only with both `unzip` and `7z` on PATH (the harness refuses otherwise).
 - `--only <scenario>`: run one scenario.
 - `--keep`: keep the temporary copy of the app (for debugging).
@@ -19,11 +19,12 @@ node tests/compat/run.js --app <dir> [--update] [--only <scenario>] [--keep] -- 
 Examples:
 
 ```
-npm install --production
-npm run test:compat
-node tests/compat/run.js --app . -- /path/to/bun index.js
-node tests/compat/run.js --app ./dist/aidm-api-linux-x64 -- ./aidm-api
+bun install --frozen-lockfile --production
+bun run test:compat
+bun tests/compat/run.js --app ./dist/aidm-api-2.6.0-linux-x64 -- ./aidm-api
 ```
+
+To check the original runtime, run it with Node.js 14 and `-- node index.js`, after `npm install --production`.
 
 The exit code is 0 when every scenario passes and 1 when any step differs or a scenario fails. A failing step prints a unified diff of the normalised JSON (expected against actual). A failing scenario also prints the last 50 lines of the server output.
 
@@ -78,6 +79,6 @@ The API unpacks zips with `unzip`, else `7z`, else a pure JavaScript fallback. T
 - When `7z` is missing the API builds `all.zip` with the JavaScript fallback, which does not list top-level directory entries. The steps that return a zip listing are then not compared, and the summary line says so.
 - The golden files were recorded with both tools. The `zip-input` golden file expects the message of `unzip` ("unzip exited with code 9") for the 404 case. With only `7z` the message differs.
 
-## Known runtime differences
+## Runtime differences it caught
 
-Some error messages come from the JavaScript engine and not from the API: the text of `JSON.parse` errors (steps "task new error: options is not JSON" and "cancel malformed json"). These steps fail on Bun with a different message. The harness does not hide this.
+Clients see the text of invalid-JSON errors (steps "task new error: options is not JSON" and "cancel malformed json"). That text comes from the JavaScript engine, so Bun worded it differently from Node.js 14. `libs/jsonErrors.js` now builds the Node.js 14 message itself, and `tests/unit` checks it against messages recorded with Node.js 14.
