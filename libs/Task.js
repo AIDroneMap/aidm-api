@@ -34,6 +34,7 @@ const S3 = require('./S3');
 const request = require('request');
 const utils = require('./utils');
 const archiver = require('archiver');
+const appRoot = require('./appRoot');
 
 const statusCodes = require('./statusCodes');
 
@@ -310,7 +311,7 @@ module.exports = class Task{
                     const zipFile = path.resolve(this.getAssetsArchivePath(outputFilename));
                     const sourcePath = !config.test ?
                                         this.getProjectFolderPath() :
-                                        path.join("tests", "processing_results");
+                                        appRoot.resolve("tests", "processing_results");
 
                     const pathsToArchive = [];
                     files.forEach(f => {
@@ -362,7 +363,7 @@ module.exports = class Task{
 
                     const sourcePath = !config.test ?
                                         this.getProjectFolderPath() :
-                                        path.join("tests", "processing_results");
+                                        appRoot.resolve("tests", "processing_results");
 
                     // Process files and directories first
                     files.forEach(file => {

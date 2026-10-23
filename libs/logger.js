@@ -21,12 +21,13 @@ let config = require('../config');
 let winston = require('winston');
 let fs = require('fs');
 let path = require('path');
+let appRoot = require('./appRoot');
 
 // Set up logging
 // Configure custom File transport to write plain text messages
 let logPath = ( config.logger.logDirectory ? 
                 config.logger.logDirectory : 
-                path.join(__dirname, "..") );
+                appRoot.root );
 
 // Check that log file directory can be written to
 try {

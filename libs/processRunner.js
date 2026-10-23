@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 "use strict";
 let fs = require('fs');
 let apps = require('./apps');
+let appRoot = require('./appRoot');
 let path = require('path');
 let assert = require('assert');
 let spawn = require('child_process').spawn;
@@ -41,7 +42,7 @@ function makeRunner(command, args, requiredOptions = [], outputTestFile = null, 
             logger.info("Test mode is on, command will not execute");
 
             if (outputTestFile){
-                fs.readFile(path.resolve(__dirname, outputTestFile), 'utf8', (err, text) => {
+                fs.readFile(appRoot.resolve(outputTestFile), 'utf8', (err, text) => {
                     if (!err){
                         if (outputReceived !== undefined){
                             let lines = text.split("\n");
@@ -87,7 +88,7 @@ function makeRunner(command, args, requiredOptions = [], outputTestFile = null, 
 }
 
 module.exports = {
-    runPostProcessingScript: makeRunner(path.join(__dirname, "..", "scripts", "postprocess.sh"),
+    runPostProcessingScript: makeRunner(appRoot.resolve("scripts", "postprocess.sh"),
                      function(options){
                          return [options.projectFolderPath];
                      },

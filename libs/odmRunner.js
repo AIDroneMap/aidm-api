@@ -21,6 +21,7 @@ let os = require('os');
 let path = require('path');
 let assert = require('assert');
 let spawn = require('child_process').spawn;
+let appRoot = require('./appRoot');
 let config = require('../config.js');
 let logger = require('./logger');
 let utils = require('./utils');
@@ -54,8 +55,8 @@ module.exports = {
         if (config.test){
             logger.info("Test mode is on, command will not execute");
 
-            let outputTestFile = path.join("..", "tests", "odm_output.txt");
-            fs.readFile(path.resolve(__dirname, outputTestFile), 'utf8', (err, text) => {
+            let outputTestFile = appRoot.resolve("tests", "odm_output.txt");
+            fs.readFile(outputTestFile, 'utf8', (err, text) => {
                 if (!err){
                     let lines = text.split("\n");
                     lines.forEach(line => outputReceived(line));
@@ -110,8 +111,8 @@ module.exports = {
         // In test mode, we don't call ODM, 
         // instead we return a mock
         if (config.test){
-            let optionsTestFile = path.join("..", "tests", "odm_options.json");
-            fs.readFile(path.resolve(__dirname, optionsTestFile), 'utf8', (err, json) => {
+            let optionsTestFile = appRoot.resolve("tests", "odm_options.json");
+            fs.readFile(optionsTestFile, 'utf8', (err, json) => {
                 if (!err){
                     try{
                         let options = JSON.parse(json);
@@ -139,7 +140,7 @@ module.exports = {
                 return `"${s}"`;
             }
 
-            let childProcess = spawn(pythonExe, [shQuote(path.join(__dirname, "..", "helpers", "odmOptionsToJson.py")),
+            let childProcess = spawn(pythonExe, [shQuote(appRoot.resolve("helpers", "odmOptionsToJson.py")),
                     "--project-path", shQuote(config.odx_path), "bogusname"], { env, shell: true });
     
             // Cleanup on done

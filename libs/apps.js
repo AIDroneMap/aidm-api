@@ -16,17 +16,17 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 const fs = require('fs');
-const path = require('path');
+const appRoot = require('./appRoot');
 
 let sevenZ = "7z";
 let unzip = "unzip";
 
-if (fs.existsSync(path.join("apps", "7z", "7z.exe"))){
-    sevenZ = path.resolve(path.join("apps", "7z", "7z.exe"));
+if (fs.existsSync(appRoot.resolve("apps", "7z", "7z.exe"))){
+    sevenZ = appRoot.resolve("apps", "7z", "7z.exe");
 }
 
-if (fs.existsSync(path.join("apps", "unzip", "unzip.exe"))){
-    unzip = path.resolve(path.join("apps", "unzip", "unzip.exe"));
+if (fs.existsSync(appRoot.resolve("apps", "unzip", "unzip.exe"))){
+    unzip = appRoot.resolve("apps", "unzip", "unzip.exe");
 }
 
 module.exports = {
