@@ -299,6 +299,8 @@ function describeResponse(res, spec) {
             ['totalMemory', 'availableMemory', 'cpuCores'].forEach(k => {
                 if (typeof body[k] === 'number') body[k] = '<number>';
             });
+            // The API version changes with every release, not with the runtime
+            if (typeof body.version === 'string' && /^\d+\.\d+\.\d+$/.test(body.version)) body.version = '<version>';
         }
     } else if (isZip) {
         const entries = readZipEntries(res.body);
