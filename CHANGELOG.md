@@ -4,6 +4,33 @@ AIDM API uses [Semantic Versioning](https://semver.org). Each release names the 
 
 The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0.
 
+## 2.6.0
+
+AIDM API now runs on Bun and ships as one compiled executable. API behaviour is unchanged.
+
+### Changed
+
+- The API runs on Bun 1.4.4, compiled into one executable with `bun build --compile`. The images contain no Node.js.
+- The images build in two stages. The first stage compiles the API on the official Bun image. The second stage copies the executable and the resource files onto the engine image. `Dockerfile`, `Dockerfile.gpu` and `apptainer.def` all work this way.
+- The image entry point is now `/var/www/aidm-api`. Flags passed to `docker run` work as before. If you override the entry point with `node index.js`, switch to `/var/www/aidm-api`.
+- Resource files (`config-default.json`, `public/`, `helpers/`, `scripts/`, `docs/swagger.json`) are found in the executable's folder. Files the API writes (`data/`, `tmp/`) stay relative to the working directory.
+- Dependencies are locked in `bun.lock`, and builds install exactly those versions. The version ranges in `package.json` are the same.
+- Compiled builds do not read `.env` or `bunfig.toml` from the working directory, like Node.js 14.
+- The API `version` is `2.6.0`. `services/nodeodx.service` starts `/www/aidm-api`.
+
+### Removed
+
+- `install_deps.sh`, `node.sh`, `processes.json` and `scripts/winbundle.js`. The executable replaces them.
+
+### Not changed
+
+- Endpoints, request and response fields, command-line flags, JSON config keys and the output layout are the same as in 2.5.0.
+
+### Known limitations
+
+- On x64, the executable needs a CPU with SSE4.2 (Nehalem, 2008 or newer). Node.js 14 ran on any x86-64 CPU.
+- Images are for Linux only. The CPU image runs on x86-64 and arm64, the GPU image on x86-64 only.
+
 ## 2.5.0
 
 The first AIDM API release. It is NodeODX 2.4.0, packaged and named as AIDM API, and runs on the AIDM 0.1.0 engine. API behaviour is unchanged.
