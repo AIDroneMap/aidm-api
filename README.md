@@ -49,6 +49,26 @@ docker build -f aidm/gpu.Dockerfile -t aidm:gpu aidm
 docker build -f aidm-api/Dockerfile.gpu --build-arg FROM_REPO=aidm:gpu -t aidm-api:gpu aidm-api
 ```
 
+### Run from source
+
+You need [Bun](https://bun.sh). The version is in `.bun-version`.
+
+```
+bun install
+bun index.js --test
+```
+
+Drop `--test` to use a real engine. Test mode simulates the engine with the sample outputs in `tests/`.
+
+### Build the executable
+
+```
+bun install --frozen-lockfile --production
+scripts/build.sh dist/aidm-api
+```
+
+The result is one executable with no runtime to install. It needs these files next to it: `config-default.json`, `public/`, `helpers/`, `scripts/` and `docs/swagger.json`, plus `tests/` for test mode. The working directory must contain `tmp/` and `data/`, because the API writes there. A compiled executable does not read `.env` or `bunfig.toml`. On x64 it needs a CPU with SSE4.2 (Nehalem, 2008 or newer).
+
 ### Keeping results
 
 Results are stored in `/var/www/data` inside the container. Mount a folder there to keep them:
@@ -90,7 +110,6 @@ Each item will be added in a compatible way, without breaking existing clients:
 - **Result manifest:** a clear status for every output file.
 - **Resources known in advance:** an estimate of memory, CPU and time before a task starts.
 - **S3-compatible storage for task inputs and intermediate stages.** Finished results can already be uploaded to S3 today (see `--s3_endpoint` in `--help`).
-- **A maintained runtime:** the image currently uses Node.js 14, which no longer receives security updates.
 
 ## Contributing
 
