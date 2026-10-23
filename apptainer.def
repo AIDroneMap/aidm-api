@@ -1,38 +1,74 @@
+# Build with: apptainer build aidm-api.sif apptainer.def
+# Run this from the repository root.
+
+# Build stage: compile the API with Bun.
+# Keep the Bun version equal to .bun-version.
 Bootstrap: docker
-From: ghcr.io/aidronemap/aidm:0.1.0
-Stage: spython-base
+From: oven/bun:1.4.4-debian@sha256:93d5032fe06d163427822dc1598f420363759bb18155c9cc90eb1be05a64a19e
+Stage: build
+
+%setup
+    mkdir -p "${APPTAINER_ROOTFS}/src/docs"
 
 %files
-. /var/www
-%labels
-org.opencontainers.image.source https://github.com/AIDroneMap/aidm-api
-org.opencontainers.image.version 2.5.0
-org.opencontainers.image.licenses AGPL-3.0
-org.opencontainers.image.title AIDM API
-org.opencontainers.image.description REST task API and AIDM photogrammetry engine in one image. Based on NodeODX and ODX.
+    package.json /src/package.json
+    bun.lock /src/bun.lock
+    .bun-version /src/.bun-version
+    index.js /src/index.js
+    config.js /src/config.js
+    libs /src/libs
+    scripts /src/scripts
+    config-default.json /src/config-default.json
+    public /src/public
+    helpers /src/helpers
+    docs/swagger.json /src/docs/swagger.json
+
 %post
+    cd /src
+    bun install --frozen-lockfile --production
+    mkdir -p /out
+    scripts/build.sh /out/aidm-api
 
-# EXPOSE 3000
+# Final stage: the executable and its resource files on the engine image.
+Bootstrap: docker
+From: ghcr.io/aidronemap/aidm:0.1.0
+Stage: final
 
-su -  root # USER root
-apt-get update && apt-get install -y curl gpg-agent
-curl --silent --location https://deb.nodesource.com/setup_14.x | bash -
-apt-get install -y nodejs unzip p7zip-full && npm install -g nodemon && \
-ln -s /code/SuperBuild/install/bin/untwine /usr/bin/untwine && \
-ln -s /code/SuperBuild/install/bin/entwine /usr/bin/entwine && \
-ln -s /code/SuperBuild/install/bin/pdal /usr/bin/pdal
+%setup
+    mkdir -p "${APPTAINER_ROOTFS}/var/www/docs"
 
+%files from build
+    /out/aidm-api /var/www/aidm-api
+    /src/config-default.json /var/www/config-default.json
+    /src/public /var/www/public
+    /src/helpers /var/www/helpers
+    /src/scripts /var/www/scripts
+    /src/docs/swagger.json /var/www/docs/swagger.json
 
-mkdir -p /var/www
+%labels
+    org.opencontainers.image.source https://github.com/AIDroneMap/aidm-api
+    org.opencontainers.image.version 2.6.0
+    org.opencontainers.image.licenses AGPL-3.0
+    org.opencontainers.image.title AIDM API
+    org.opencontainers.image.description REST task API and AIDM photogrammetry engine in one image. Based on NodeODX and ODX.
 
-mkdir -p "/var/www"
-cd "/var/www"
-
-npm install --production && mkdir -p tmp
+%post
+    for i in $(seq 1 20); do
+        apt-get update && apt-get install -y curl unzip p7zip-full && break
+        echo "apt-get failed, retrying... ($i/20)"
+        sleep 30
+    done
+    command -v curl >/dev/null && command -v unzip >/dev/null && command -v 7z >/dev/null
+    rm -rf /var/lib/apt/lists/*
+    ln -s /code/SuperBuild/install/bin/untwine /usr/bin/untwine
+    ln -s /code/SuperBuild/install/bin/entwine /usr/bin/entwine
+    ln -s /code/SuperBuild/install/bin/pdal /usr/bin/pdal
+    mkdir -p /var/www/tmp /var/www/data
 
 %runscript
-cd "/var/www"
-exec /usr/bin/node /var/www/index.js "$@"
+    cd /var/www
+    exec /var/www/aidm-api "$@"
+
 %startscript
-cd "/var/www"
-exec /usr/bin/node /var/www/index.js "$@"
+    cd /var/www
+    exec /var/www/aidm-api "$@"

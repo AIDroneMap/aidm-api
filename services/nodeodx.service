@@ -7,7 +7,7 @@ PIDFile=/run/nodeodx.pid
 User=odx
 Group=odx
 WorkingDirectory=/www
-ExecStart=/usr/bin/node index.js
+ExecStart=/www/aidm-api
 ExecStop=/bin/kill -s QUIT $MAINPID
 Restart=on-failure
 

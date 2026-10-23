@@ -25,7 +25,7 @@ This repository covers a single machine only. Scheduling across machines and clo
 | `tests/` | Sample engine outputs used by test mode |
 | `Dockerfile`, `Dockerfile.gpu` | Images built on top of the engine image (`FROM_REPO` build argument) |
 
-Windows files inherited from NodeODX (`scripts/winbundle.js`, `*.bat`) are not maintained. Do not edit them; they will be removed.
+Windows batch files inherited from NodeODX (`*.bat`) are not maintained. Do not edit them; they will be removed.
 
 ## Workflow
 
@@ -65,7 +65,10 @@ These apply to everything you write: code comments, docs, specs, commit messages
 - Build this API on top of it: `docker build --build-arg FROM_REPO=aidm -t aidm-api .`
 - Run it: `docker run -p 3000:3000 aidm-api`
 - Check it starts and exits cleanly: `docker run --rm aidm-api --powercycle`
-- Without Docker or the engine: `npm install`, then `node index.js --test`. Test mode simulates the engine with the sample outputs in `tests/`.
+- The Bun version lives in `.bun-version`. Install that version.
+- Without Docker or the engine: `bun install`, then `bun index.js --test`. Test mode simulates the engine with the sample outputs in `tests/`.
+- Build the executable: `bun install --frozen-lockfile --production`, then `scripts/build.sh dist/aidm-api`.
+- Check API behaviour against the recorded responses: `bun tests/compat/run.js --app . -- bun index.js`.
 
 Every bug fix and feature needs a way to verify it. Describe how you tested the change in the pull request.
 
@@ -73,7 +76,7 @@ Every bug fix and feature needs a way to verify it. Describe how you tested the 
 
 - **The API stays compatible.** WebODM, PyODX, CloudODX and other clients depend on it. New endpoints and fields may be added; existing ones are never renamed, removed or changed in meaning. Update `docs/index.adoc` and `docs/swagger.json` with every API change. Breaking changes need an approved spec.
 - **Configuration stays compatible.** Do not rename or remove command-line flags or JSON config keys.
-- **Dependencies are pinned.** Update one dependency per pull request and say why. The runtime upgrade away from Node.js 14 is its own planned piece of work; do not bundle it with other changes.
+- **Dependencies are pinned.** Update one dependency per pull request and say why. Dependency versions are locked in `bun.lock`. The Bun version is pinned in `.bun-version`, the Dockerfiles and `apptainer.def`; update it in its own pull request.
 - **Licences.** This project is AGPL-3.0. Keep every existing copyright notice, and keep the `SOURCE` file pointing to this repository. Do not copy code from sources with an incompatible licence. When unsure, stop and ask.
 
 ## Security and privacy
