@@ -65,7 +65,10 @@ These apply to everything you write: code comments, docs, specs, commit messages
 - Build this API on top of it: `docker build --build-arg FROM_REPO=aidm -t aidm-api .`
 - Run it: `docker run -p 3000:3000 aidm-api`
 - Check it starts and exits cleanly: `docker run --rm aidm-api --powercycle`
-- Without Docker or the engine: `npm install`, then `node index.js --test`. Test mode simulates the engine with the sample outputs in `tests/`.
+- The Bun version lives in `.bun-version`. Install that version.
+- Without Docker or the engine: `bun install`, then `bun index.js --test`. Test mode simulates the engine with the sample outputs in `tests/`.
+- Build the executable: `bun install --frozen-lockfile --production`, then `scripts/build.sh dist/aidm-api`.
+- Check API behaviour against the recorded responses: `bun tests/compat/run.js --app . -- bun index.js`.
 
 Every bug fix and feature needs a way to verify it. Describe how you tested the change in the pull request.
 
