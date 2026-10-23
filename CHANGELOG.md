@@ -16,6 +16,7 @@ AIDM API now runs on Bun and ships as one compiled executable. API behaviour is 
 - Resource files (`config-default.json`, `public/`, `helpers/`, `scripts/`, `docs/swagger.json`) are found in the executable's folder. Files the API writes (`data/`, `tmp/`) stay relative to the working directory.
 - Dependencies are locked in `bun.lock`, and builds install exactly those versions. The version ranges in `package.json` are the same.
 - Compiled builds do not read `.env` or `bunfig.toml` from the working directory, like Node.js 14.
+- Errors for invalid JSON use Bun's wording. This covers an invalid `options` field on `POST /task/new`, and an invalid JSON body on `POST /task/cancel`, `/task/remove` and `/task/restart`. For example, `{"error": "Unexpected token n in JSON at position 1"}` is now `{"error": "JSON Parse error: Expected '}'"}`. The response shape and status code are the same.
 - The API `version` is `2.6.0`. `services/nodeodx.service` starts `/www/aidm-api`.
 
 ### Removed

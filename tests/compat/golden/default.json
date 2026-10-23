@@ -2466,7 +2466,7 @@
         "access-control-allow-origin": "*"
       },
       "body": {
-        "error": "Unexpected token n in JSON at position 1"
+        "error": "JSON Parse error: Expected '}'"
       }
     }
   },
@@ -3153,7 +3153,7 @@
         "access-control-allow-origin": "*"
       },
       "body": {
-        "error": "Unexpected end of JSON input"
+        "error": "JSON Parse error: Unexpected EOF"
       }
     }
   },

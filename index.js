@@ -21,7 +21,6 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config.js');
 const appRoot = require('./libs/appRoot');
-const jsonErrors = require('./libs/jsonErrors');
 // Loaded with require, so it is built into a compiled executable
 const packageJson = require('./package.json');
 
@@ -892,13 +891,6 @@ app.post('/auth/register', (req, res) => {
 
 app.use((err, req, res, next) => {
     logger.error(err.stack);
-
-    // Invalid JSON body: give the same message on every runtime
-    if (err.type === 'entity.parse.failed' && typeof err.body === 'string'){
-        res.json({error: jsonErrors.bodyParserMessage(err.body)});
-        return;
-    }
-
     res.json({error: err.message});
 });
 
