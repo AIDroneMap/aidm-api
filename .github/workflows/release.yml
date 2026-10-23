@@ -277,6 +277,15 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then bun="$RUNNER_TEMP/bun/bun.exe"; fi
           "$bun" tests/compat/run.js --app "$APP" -- "./$EXE"
 
+      # A clean Windows machine has neither tool. The runner has both (Git's
+      # unzip, Chocolatey's 7z), so run again with only the system folders on
+      # the PATH. The harness skips the cases that need unzip or 7z (#8).
+      - name: Compatibility harness without unzip and 7z (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          bun="$RUNNER_TEMP/bun/bun.exe"
+          PATH="/c/Windows/system32:/c/Windows" "$bun" tests/compat/run.js --app "$APP" -- "./$EXE"
+
   build:
     name: ${{ matrix.name }}
     needs: check
