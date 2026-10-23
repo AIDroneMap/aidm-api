@@ -5,8 +5,8 @@
   "description": "REST task API of the AIDM photogrammetry engine",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:compat": "node tests/compat/run.js --app . -- node index.js"
+    "test": "bun test tests/unit",
+    "test:compat": "bun tests/compat/run.js --app . -- bun index.js"
   },
   "repository": {
     "type": "git",
