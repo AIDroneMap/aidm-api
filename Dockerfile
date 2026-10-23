@@ -1,9 +1,19 @@
 ARG FROM_REPO=ghcr.io/aidronemap/aidm:0.1.0
+
+# Build stage. It runs on the target platform, so Bun compiles natively and
+# downloads nothing. Keep the Bun version equal to .bun-version.
+FROM oven/bun:1.4.4-debian@sha256:93d5032fe06d163427822dc1598f420363759bb18155c9cc90eb1be05a64a19e AS build
+WORKDIR /src
+COPY package.json bun.lock .bun-version ./
+RUN bun install --frozen-lockfile --production
+COPY . .
+RUN scripts/build.sh /out/aidm-api
+
 FROM ${FROM_REPO}
 
 # Image metadata. Keep the version equal to "version" in package.json.
 LABEL org.opencontainers.image.source="https://github.com/AIDroneMap/aidm-api" \
-      org.opencontainers.image.version="2.5.0" \
+      org.opencontainers.image.version="2.6.0" \
       org.opencontainers.image.licenses="AGPL-3.0" \
       org.opencontainers.image.title="AIDM API" \
       org.opencontainers.image.description="REST task API and AIDM photogrammetry engine in one image. Based on NodeODX and ODX."
@@ -12,19 +22,25 @@ EXPOSE 3000
 
 USER root
 
-RUN mkdir /var/www
+WORKDIR /var/www
 
-WORKDIR "/var/www"
-COPY . /var/www
+COPY --from=build /out/aidm-api /var/www/aidm-api
+COPY config-default.json /var/www/
+COPY public /var/www/public
+COPY helpers /var/www/helpers
+COPY scripts /var/www/scripts
+COPY docs/swagger.json /var/www/docs/swagger.json
 
-ENV NVM_DIR /usr/local/nvm
-ENV NODE_VERSION 14
-
-RUN bash install_deps.sh && \
+RUN for i in $(seq 1 20); do \
+        apt-get update && apt-get install -y curl unzip p7zip-full && break; \
+        echo "apt-get failed, retrying... ($i/20)"; \
+        sleep 30; \
+    done && \
+    command -v curl >/dev/null && command -v unzip >/dev/null && command -v 7z >/dev/null && \
+    rm -rf /var/lib/apt/lists/* && \
     ln -s /code/SuperBuild/install/bin/untwine /usr/bin/untwine && \
     ln -s /code/SuperBuild/install/bin/entwine /usr/bin/entwine && \
     ln -s /code/SuperBuild/install/bin/pdal /usr/bin/pdal && \
-    ln -s /var/www/node.sh /usr/bin/node && \
-    mkdir -p tmp && node index.js --powercycle
+    mkdir -p tmp data && /var/www/aidm-api --powercycle
 
-ENTRYPOINT ["/usr/bin/node", "/var/www/index.js"]
+ENTRYPOINT ["/var/www/aidm-api"]
