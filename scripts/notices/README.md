@@ -1,0 +1,2 @@
+`bun-LICENSE.md` is LICENSE.md from Bun at tag `bun-v1.4.4` (https://raw.githubusercontent.com/oven-sh/bun/bun-v1.4.4/LICENSE.md). `LGPL-2.0.txt` and `LGPL-2.1.txt` come from https://www.gnu.org/licenses/old-licenses/lgpl-2.0.txt and https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt.
+Refresh `bun-LICENSE.md` from the new tag whenever `.bun-version` changes. `scripts/check-bun-pins.sh` only checks that the file exists, so do not skip this step.
