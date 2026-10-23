@@ -20,7 +20,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 const fs = require('fs');
 const path = require('path');
 const config = require('./config.js');
-const packageJson = JSON.parse(fs.readFileSync('./package.json'));
+const appRoot = require('./libs/appRoot');
+// Loaded with require, so it is built into a compiled executable
+const packageJson = require('./package.json');
 
 const logger = require('./libs/logger');
 const async = require('async');
@@ -45,8 +47,8 @@ const taskNew = require('./libs/taskNew');
 app.use(cors())
 app.options('*', cors())
 
-app.use(express.static('public'));
-app.use('/swagger.json', express.static('docs/swagger.json'));
+app.use(express.static(appRoot.resolve('public')));
+app.use('/swagger.json', express.static(appRoot.resolve('docs', 'swagger.json')));
 
 const formDataParser = storage.fields();
 const urlEncodedBodyParser = bodyParser.urlencoded({extended: false});
