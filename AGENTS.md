@@ -76,7 +76,7 @@ Every bug fix and feature needs a way to verify it. Describe how you tested the 
 
 - **The API stays compatible.** WebODM, PyODX, CloudODX and other clients depend on it. New endpoints and fields may be added; existing ones are never renamed, removed or changed in meaning. Update `docs/index.adoc` and `docs/swagger.json` with every API change. Breaking changes need an approved spec.
 - **Configuration stays compatible.** Do not rename or remove command-line flags or JSON config keys.
-- **Dependencies are pinned.** Update one dependency per pull request and say why. The runtime upgrade away from Node.js 14 is its own planned piece of work; do not bundle it with other changes.
+- **Dependencies are pinned.** Update one dependency per pull request and say why. Dependency versions are locked in `bun.lock`. The Bun version is pinned in `.bun-version`, the Dockerfiles and `apptainer.def`; update it in its own pull request.
 - **Licences.** This project is AGPL-3.0. Keep every existing copyright notice, and keep the `SOURCE` file pointing to this repository. Do not copy code from sources with an incompatible licence. When unsure, stop and ask.
 
 ## Security and privacy
