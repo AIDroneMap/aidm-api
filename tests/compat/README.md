@@ -12,7 +12,7 @@ bun tests/compat/run.js --app <dir> [--update] [--only <scenario>] [--keep] -- <
 
 - `--app <dir>`: the folder that holds the runnable API. Today that is the repository root. Later it can be an unpacked release archive with a compiled executable.
 - `<command> [args...]`: how to start the API, for example `bun index.js` or `./aidm-api` (or `aidm-api.exe`). If the first element is a relative path that exists inside the app copy, the harness uses that file. The harness adds `--test --port <free port>` and the flags of the scenario.
-- `--update`: write the golden files instead of comparing. Record them only with both `unzip` and `7z` on PATH (the harness refuses otherwise).
+- `--update`: write the golden files instead of comparing. Record them only with both `unzip` and `7z` on PATH (the harness refuses otherwise). The one exception is `--only zip-input-no-tools`, which can be recorded on any machine.
 - `--only <scenario>`: run one scenario.
 - `--keep`: keep the temporary copy of the app (for debugging).
 
@@ -47,6 +47,7 @@ Test images and zip files are generated at run time from seeded random bytes. No
 | --- | --- | --- |
 | `default` | none | All routes, success and error cases: static files, `/info`, `/options`, auth stubs, `/task/new` (options, outputs, `set-uuid`, GCP file, errors, `zipurl` failures), chunked upload (`init`, `upload`, `commit`), task info and output, `all.zip` download, cancel, restart, remove (urlencoded and JSON bodies), malformed JSON |
 | `zip-input` | none | `seed.zip` upload, `zipurl` success and 404. Needs `unzip` or `7z`. |
+| `zip-input-no-tools` | none | `seed.zip` upload and `zipurl` success when the server cannot find `unzip` or `7z`: both tasks fail with a clear error and the server keeps answering. Runs on every machine. |
 | `token` | `--token compat-secret` | Every token check with and without the token |
 | `fail` | `--test_fail_tasks` | A failed task, its output, download of a missing asset, restart |
 | `limits` | `--max_images 1` | `maxImages` in `/info`, limit errors on direct and chunked upload |
@@ -73,11 +74,12 @@ Nothing else is normalised. Task output lines come from fixed sample files and d
 
 ## Tools and skipped checks
 
-The API unpacks zips with `unzip`, else `7z`, else a pure JavaScript fallback. The fallback crashes the server with "Callback was already called" (also on Node.js 14, a known bug). So:
+The API unpacks zips with `unzip`, else `7z`. When neither is installed, a task with a zip file (an upload or `zipurl`) fails with the error "Could not extract .zip file, neither unzip nor 7z is installed", and the server keeps running. So:
 
-- The `zip-input` scenario is skipped, with a printed reason, when both `unzip` and `7z` are missing.
+- The `zip-input-no-tools` scenario always runs. It starts the server with a `PATH` that has neither program: one empty folder on Linux and macOS, only the Windows system folders on Windows. An empty string does not work, because Bun then searches a default path that includes `/usr/bin`. The harness looks up the server command on the real `PATH` first. On Windows it also deletes `apps/7z/7z.exe` and `apps/unzip/unzip.exe` from the temporary copy. The scenario checks that both tasks end with status 30 and that `/info` still answers.
+- The `zip-input` scenario is skipped, with a printed reason, when both `unzip` and `7z` are missing on the harness's own `PATH`. Its golden file holds the messages of the tools themselves, for example "unzip exited with code 9" for the 404 case, so it cannot pass without them.
 - When `7z` is missing the API builds `all.zip` with the JavaScript fallback, which does not list top-level directory entries. The steps that return a zip listing are then not compared, and the summary line says so.
-- The golden files were recorded with both tools. The `zip-input` golden file expects the message of `unzip` ("unzip exited with code 9") for the 404 case. With only `7z` the message differs.
+- The golden files were recorded with both tools. With only `7z` the message of the 404 case differs.
 
 ## Runtime differences it caught
 

@@ -1,7 +1,5 @@
 const processRunner = require('./processRunner');
-const nodeUnzip = require('node-unzip-2');
 const config = require('../config');
-const fs = require('fs');
 
 module.exports = {
     unzip: function(file, outputDir, cb, noDirectories = false){
@@ -30,9 +28,7 @@ module.exports = {
                 }
             });
         }else{
-            fs.createReadStream(file).pipe(nodeUnzip.Extract({ path: outputDir }))
-                .on('close', cb)
-                .on('error', cb);
+            cb(new Error("Could not extract .zip file, neither unzip nor 7z is installed"));
         }
     }
 }
