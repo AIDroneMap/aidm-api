@@ -83,7 +83,9 @@ cd aidm-api-<version>-linux-x64
 ./aidm-api --odx_path /path/to/aidm
 ```
 
-On Windows, only test mode works today, because there is no Windows engine: run `aidm-api.exe --test`. Install `unzip` and `7z` and put them on the `PATH`. Without them, tasks with zip files (uploads and `zipurl`) fail with an error, and downloading `all.zip` right after a task completes can fail ([#17](https://github.com/AIDroneMap/aidm-api/issues/17)).
+On every platform, install `unzip` and `7z` and put them on the `PATH`, as the images do. Without them, tasks with zip files (uploads and `zipurl`) fail with an error. Without `7z`, the API builds `all.zip` with a slower JavaScript fallback.
+
+On Windows, only test mode works today, because there is no Windows engine: run `aidm-api.exe --test`.
 
 To build an archive yourself, run `bun install --frozen-lockfile --production`, then `scripts/package.sh linux-x64 dist`.
 
