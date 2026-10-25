@@ -347,15 +347,30 @@ module.exports = class Task{
                             zlib: { level: 1 } // Sets the compression level (1 = best speed since most assets are already compressed)
                         });
 
-                    archive.on('finish', () => {
+                    // Report once, on success or on the first error
+                    let finished = false;
+                    const finish = err => {
+                        if (finished) return;
+                        finished = true;
+                        done(err);
+                    };
+
+                    // The archiver's 'finish' fires before the file is fully
+                    // written. Wait for the output file to close, so the task
+                    // only completes when the archive can be downloaded whole.
+                    output.on('close', () => {
                         this.updateProgress(97);
-                        // TODO: is this being fired twice?
-                        done();
+                        finish();
+                    });
+
+                    output.on('error', err => {
+                        logger.error(`Could not write .zip file: ${err.message}`);
+                        finish(err);
                     });
 
                     archive.on('error', err => {
                         logger.error(`Could not archive .zip file: ${err.message}`);
-                        done(err);
+                        finish(err);
                     });
 
                     archive.pipe(output);
@@ -390,7 +405,7 @@ module.exports = class Task{
 
                         globs.forEach(pattern => {
                             glob(pattern, (err, files) => {
-                                if (err) done(err);
+                                if (err) finish(err);
                                 else{
                                     files.forEach(file => {
                                         if (fs.lstatSync(file).isFile()){
