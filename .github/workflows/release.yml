@@ -138,15 +138,18 @@ jobs:
           persist-credentials: false
 
       # Kept outside the workspace, so it does not end up in the build context
+      # smoke-test.sh reads smoke-test.conf from its own folder, so fetch both
       - name: Download the aidm smoke test
         env:
           ENGINE_REF: ${{ needs.check.outputs.engine-ref }}
         run: |
-          url="https://raw.githubusercontent.com/AIDroneMap/aidm/$ENGINE_REF/scripts/smoke-test.sh"
-          if ! curl -fsSL -o "$RUNNER_TEMP/smoke-test.sh" "$url"; then
-            echo "::error::Cannot download $url. The aidm release $ENGINE_REF must include scripts/smoke-test.sh."
-            exit 1
-          fi
+          for file in smoke-test.sh smoke-test.conf; do
+            url="https://raw.githubusercontent.com/AIDroneMap/aidm/$ENGINE_REF/scripts/$file"
+            if ! curl -fsSL -o "$RUNNER_TEMP/$file" "$url"; then
+              echo "::error::Cannot download $url. The aidm release $ENGINE_REF must include scripts/$file."
+              exit 1
+            fi
+          done
           chmod +x "$RUNNER_TEMP/smoke-test.sh"
 
       - name: Free disk space
