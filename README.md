@@ -4,7 +4,7 @@
 
 AIDM API is a REST server that accepts drone images, runs the AIDM engine on them, and returns the results. It is forked from [NodeODX](https://github.com/WebODM/NodeODX) and keeps the same API, so clients such as [WebODM](https://github.com/WebODM/WebODM), PyODX and CloudODX can connect to it without changes.
 
-> **Status: 2.5.0, part of the first AIDM release.** AIDM API 2.5.0 is NodeODX 2.4.0 packaged as AIDM API, on top of the AIDM 0.1.0 engine. The [changelog](CHANGELOG.md) lists what changed.
+> **Status: 2.6.0.** AIDM API 2.6.0 runs on Bun and ships as one executable, on top of the AIDM 0.1.0 engine. The [changelog](CHANGELOG.md) lists what changed.
 
 ## Where it fits
 
@@ -21,7 +21,7 @@ The engine and this API ship together in one container image. Scheduling across 
 ## Quick start
 
 ```
-docker run -p 3000:3000 ghcr.io/aidronemap/aidm-api:2.5.0
+docker run -p 3000:3000 ghcr.io/aidronemap/aidm-api:2.6.0
 ```
 
 Open http://127.0.0.1:3000, add some images and press **Start Task**.
@@ -31,7 +31,7 @@ Open http://127.0.0.1:3000, add some images and press **Start Task**.
 With an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html):
 
 ```
-docker run -p 3000:3000 --gpus all ghcr.io/aidronemap/aidm-api:2.5.0-gpu
+docker run -p 3000:3000 --gpus all ghcr.io/aidronemap/aidm-api:2.6.0-gpu
 ```
 
 ### Build from source
@@ -49,12 +49,32 @@ docker build -f aidm/gpu.Dockerfile -t aidm:gpu aidm
 docker build -f aidm-api/Dockerfile.gpu --build-arg FROM_REPO=aidm:gpu -t aidm-api:gpu aidm-api
 ```
 
+### Run from source
+
+You need [Bun](https://bun.sh). The version is in `.bun-version`.
+
+```
+bun install
+bun index.js --test
+```
+
+Drop `--test` to use a real engine. Test mode simulates the engine with the sample outputs in `tests/`.
+
+### Build the executable
+
+```
+bun install --frozen-lockfile --production
+scripts/build.sh dist/aidm-api
+```
+
+The result is one executable with no runtime to install. It needs these files next to it: `config-default.json`, `public/`, `helpers/`, `scripts/` and `docs/swagger.json`, plus `tests/` for test mode. The working directory must contain `tmp/` and `data/`, because the API writes there. A compiled executable does not read `.env` or `bunfig.toml`. On x64 it needs a CPU with SSE4.2 (Nehalem, 2008 or newer).
+
 ### Keeping results
 
 Results are stored in `/var/www/data` inside the container. Mount a folder there to keep them:
 
 ```
-docker run -p 3000:3000 -v /path/to/storage:/var/www/data ghcr.io/aidronemap/aidm-api:2.5.0
+docker run -p 3000:3000 -v /path/to/storage:/var/www/data ghcr.io/aidronemap/aidm-api:2.6.0
 ```
 
 ## Configuration
@@ -72,7 +92,7 @@ Settings are passed as command-line flags after the image name, or in a JSON fil
 | `--s3_endpoint`, `--s3_bucket` | Upload finished results to S3-compatible storage |
 | `--test` | Test mode: simulates the engine, for development without it |
 
-Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.5.0 --help` for the full list, and see `config-default.json` for the file format.
+Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.6.0 --help` for the full list, and see `config-default.json` for the file format.
 
 ## API
 
@@ -90,7 +110,6 @@ Each item will be added in a compatible way, without breaking existing clients:
 - **Result manifest:** a clear status for every output file.
 - **Resources known in advance:** an estimate of memory, CPU and time before a task starts.
 - **S3-compatible storage for task inputs and intermediate stages.** Finished results can already be uploaded to S3 today (see `--s3_endpoint` in `--help`).
-- **A maintained runtime:** the image currently uses Node.js 14, which no longer receives security updates.
 
 ## Contributing
 

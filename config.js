@@ -21,6 +21,7 @@ let fs = require('fs');
 let argv = require('minimist')(process.argv.slice(2));
 let utils = require('./libs/utils');
 let apps = require('./libs/apps');
+let appRoot = require('./libs/appRoot');
 const spawnSync = require('child_process').spawnSync;
 
 if (argv.help){
@@ -85,7 +86,8 @@ for (let k in argv){
 let config = {};
 
 // Read configuration from file
-let configFilePath = argv.config || "config-default.json";
+// An explicit --config path is relative to the working directory, the default one to the app folder
+let configFilePath = argv.config || appRoot.resolve("config-default.json");
 let configFile = {};
 
 if (/\.json$/i.test(configFilePath)){
