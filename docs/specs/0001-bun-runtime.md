@@ -1,6 +1,8 @@
 # 0001: Run AIDM API on Bun and ship it as one executable
 
-Status: proposed. Target release: AIDM API 2.6.0.
+Status: implemented. Shipped in AIDM API 2.6.1.
+
+The plan targeted 2.6.0. That version was tagged but never released, because its release run failed (#29). Where the text below says 2.6.0, it means the release that shipped as 2.6.1.
 
 ## Problem
 
