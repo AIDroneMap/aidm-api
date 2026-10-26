@@ -4,7 +4,7 @@
 
 AIDM API is a REST server that accepts drone images, runs the AIDM engine on them, and returns the results. It is forked from [NodeODX](https://github.com/WebODM/NodeODX) and keeps the same API, so clients such as [WebODM](https://github.com/WebODM/WebODM), PyODX and CloudODX can connect to it without changes.
 
-> **Status: 2.6.0.** AIDM API 2.6.0 runs on Bun and ships as one executable, on top of the AIDM 0.1.0 engine. The [changelog](CHANGELOG.md) lists what changed.
+> **Status: 2.6.1.** AIDM API 2.6.1 runs on Bun and ships as one executable, on top of the AIDM 0.1.0 engine. The [changelog](CHANGELOG.md) lists what changed.
 
 Documentation is at [aidronemap.dev](https://aidronemap.dev): [running the API](https://aidronemap.dev/api/running/), [configuration](https://aidronemap.dev/api/configuration/), the [API reference](https://aidronemap.dev/api/reference/) and [clients](https://aidronemap.dev/api/clients/). News is on [aidronemap.org](https://aidronemap.org).
 
@@ -23,7 +23,7 @@ The engine and this API ship together in one container image. Scheduling across 
 ## Quick start
 
 ```
-docker run -p 3000:3000 ghcr.io/aidronemap/aidm-api:2.6.0
+docker run -p 3000:3000 ghcr.io/aidronemap/aidm-api:2.6.1
 ```
 
 Open http://127.0.0.1:3000, add some images and press **Start Task**.
@@ -33,7 +33,7 @@ Open http://127.0.0.1:3000, add some images and press **Start Task**.
 With an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html):
 
 ```
-docker run -p 3000:3000 --gpus all ghcr.io/aidronemap/aidm-api:2.6.0-gpu
+docker run -p 3000:3000 --gpus all ghcr.io/aidronemap/aidm-api:2.6.1-gpu
 ```
 
 ### Build from source
@@ -96,7 +96,7 @@ To build an archive yourself, run `bun install --frozen-lockfile --production`, 
 Results are stored in `/var/www/data` inside the container. Mount a folder there to keep them:
 
 ```
-docker run -p 3000:3000 -v /path/to/storage:/var/www/data ghcr.io/aidronemap/aidm-api:2.6.0
+docker run -p 3000:3000 -v /path/to/storage:/var/www/data ghcr.io/aidronemap/aidm-api:2.6.1
 ```
 
 ## Configuration
@@ -114,7 +114,7 @@ Settings are passed as command-line flags after the image name, or in a JSON fil
 | `--s3_endpoint`, `--s3_bucket` | Upload finished results to S3-compatible storage |
 | `--test` | Test mode: simulates the engine, for development without it |
 
-Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.6.0 --help` for the full list, and see `config-default.json` for the file format. [Configuration](https://aidronemap.dev/api/configuration/) describes every flag.
+Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.6.1 --help` for the full list, and see `config-default.json` for the file format. [Configuration](https://aidronemap.dev/api/configuration/) describes every flag.
 
 ## API
 
