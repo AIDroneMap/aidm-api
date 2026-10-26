@@ -23,6 +23,7 @@ AIDM API now runs on Bun and ships as one compiled executable. API behaviour is 
 ### Fixed
 
 - When neither `unzip` nor `7z` is installed, a task with a zip file (an upload or `zipurl`) now fails with the error "Could not extract .zip file, neither unzip nor 7z is installed". Before, the server crashed with "Callback was already called". The API also logs a warning at startup when both programs are missing. Fixes #9.
+- When `7z` is not installed, a task no longer completes before `all.zip` is fully written. The API built the archive with its JavaScript fallback and reported completion when the archiver finished, before the file was closed. A client that downloaded `all.zip` right away got a truncated file or a wrong `Content-Length`. The task now completes when the file is closed. Fixes #17.
 
 ### Removed
 

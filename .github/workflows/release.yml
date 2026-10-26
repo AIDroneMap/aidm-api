@@ -286,15 +286,23 @@ jobs:
           sudo apt-get install -y qemu-user
           "$RUNNER_TEMP/bun/bun" tests/compat/run.js --app "$APP" -- "$(command -v qemu-x86_64)" -cpu Nehalem ./aidm-api
 
+      # Without 7z the API builds all.zip with its JavaScript fallback. Run
+      # the harness with unzip but no 7z on the PATH, so that path is tested
+      # on Linux too. The harness itself only needs the absolute path to Bun.
+      - name: Compatibility harness without 7z (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          tools="$RUNNER_TEMP/unzip-only"
+          mkdir -p "$tools"
+          ln -s "$(command -v unzip)" "$tools/unzip"
+          PATH="$tools" "$RUNNER_TEMP/bun/bun" tests/compat/run.js --app "$APP" -- "./$EXE"
+
       # A clean Windows machine has neither tool. The runner has both (Git's
       # unzip, Chocolatey's 7z), so run again with only the system folders on
       # the PATH. The harness skips zip-input, whose golden file holds the
       # tools' own messages, and still runs zip-input-no-tools (#8).
-      # It does not block the release yet: without 7z a task completes before
-      # all.zip is fully written (#17), which Windows' slower disk exposes.
       - name: Compatibility harness without unzip and 7z (Windows)
         if: runner.os == 'Windows'
-        continue-on-error: true
         run: |
           bun="$RUNNER_TEMP/bun/bun.exe"
           PATH="/c/Windows/system32:/c/Windows" "$bun" tests/compat/run.js --app "$APP" -- "./$EXE"
