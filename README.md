@@ -6,6 +6,8 @@ AIDM API is a REST server that accepts drone images, runs the AIDM engine on the
 
 > **Status: 2.6.0.** AIDM API 2.6.0 runs on Bun and ships as one executable, on top of the AIDM 0.1.0 engine. The [changelog](CHANGELOG.md) lists what changed.
 
+Documentation is at [aidronemap.dev](https://aidronemap.dev): [running the API](https://aidronemap.dev/api/running/), [configuration](https://aidronemap.dev/api/configuration/), the [API reference](https://aidronemap.dev/api/reference/) and [clients](https://aidronemap.dev/api/clients/). News is on [aidronemap.org](https://aidronemap.org).
+
 ## Where it fits
 
 AIDroneMap has three separate parts:
@@ -110,11 +112,11 @@ Settings are passed as command-line flags after the image name, or in a JSON fil
 | `--s3_endpoint`, `--s3_bucket` | Upload finished results to S3-compatible storage |
 | `--test` | Test mode: simulates the engine, for development without it |
 
-Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.6.0 --help` for the full list, and see `config-default.json` for the file format.
+Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.6.0 --help` for the full list, and see `config-default.json` for the file format. [Configuration](https://aidronemap.dev/api/configuration/) describes every flag.
 
 ## API
 
-The API specification is in [docs/index.adoc](docs/index.adoc), with a Swagger file in [docs/swagger.json](docs/swagger.json). It is compatible with NodeODX API 2.x, and `GET /info` adds two fields, `upstreamVersion` and `engineUpstreamVersion`. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
+The [API reference](https://aidronemap.dev/api/reference/) documents every endpoint. The specification files in this repository are [docs/swagger.json](docs/swagger.json) and [docs/index.adoc](docs/index.adoc). It is compatible with NodeODX API 2.x, and `GET /info` adds two fields, `upstreamVersion` and `engineUpstreamVersion`. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
 
 The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0. The API version never goes below 2.4.0, because PyODX and WebODM read it from `GET /info` and switch to older code paths below 1.4.0 and 1.5.1.
 
