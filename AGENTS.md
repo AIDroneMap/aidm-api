@@ -72,6 +72,10 @@ These apply to everything you write: code comments, docs, specs, commit messages
 
 Every bug fix and feature needs a way to verify it. Describe how you tested the change in the pull request.
 
+## Performance claims and benchmarks
+
+A performance claim about the API is validated in the coding session, and measured only by aidm-bench, the private benchmark repository. To get numbers for a pull request, start a release dry run from the branch and get the image digest from the CI package (`ghcr.io/aidronemap/aidm-api-ci`). Then file a benchmark issue in aidm-bench with the benchmark issue template, naming the commit, and link it from the pull request. Nobody writes a performance number into this repository. Numbers come only from aidm-bench records.
+
 ## Rules that protect users
 
 - **The API stays compatible.** WebODM, PyODX, CloudODX and other clients depend on it. New endpoints and fields may be added; existing ones are never renamed, removed or changed in meaning. Update `docs/index.adoc` and `docs/swagger.json` with every API change. Breaking changes need an approved spec.
