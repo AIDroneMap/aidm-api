@@ -83,4 +83,8 @@ The API unpacks zips with `unzip`, else `7z`. When neither is installed, a task 
 
 ## Runtime differences it caught
 
-Clients see the text of invalid-JSON errors (steps "task new error: options is not JSON" and "cancel malformed json"). That text comes from the JavaScript engine, so Bun words it differently from Node.js 14. The maintainer accepted Bun's wording for the move to Bun: these two steps were re-recorded with Bun, and the 2.6.1 changelog says so. The response shape and status code did not change. Every other step is still the Node.js 14 recording.
+Clients see the text of invalid-JSON errors (steps "task new error: options is not JSON" and "cancel malformed json"). That text comes from the JavaScript engine, so Bun words it differently from Node.js 14. The maintainer accepted Bun's wording for the move to Bun: these two steps were re-recorded with Bun, and the 2.6.1 changelog says so. The response shape and status code did not change.
+
+The `swagger.json` step holds the SHA-256 of `docs/swagger.json` as served. When the version in that file was corrected from 2.5.0 to 2.6.1 (#37), the hash in `golden/default.json` was set to the hash of the new file. The length is the same. The served file does not depend on the runtime, so this is what Node.js 14 would return too.
+
+Every other step is still the Node.js 14 recording.
