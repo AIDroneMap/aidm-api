@@ -4,6 +4,12 @@ AIDM API uses [Semantic Versioning](https://semver.org). Each release names the 
 
 The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0.
 
+## Unreleased
+
+### Fixed
+
+- `docs/swagger.json`, `docs/index.adoc` and the `/swagger.json` the API serves said version 2.5.0 in 2.6.1. They now say 2.6.1, and a unit test fails when a file that states the API version disagrees with `package.json` (#37).
+
 ## 2.6.1
 
 AIDM API now runs on Bun and ships as one compiled executable. API behaviour is unchanged.
