@@ -65,7 +65,8 @@ env:
 jobs:
   check:
     name: Check version and base images
-    runs-on: ubuntu-latest
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -159,7 +160,8 @@ jobs:
   # runs before the aidm release is public.
   executables:
     name: Build executables
-    runs-on: ubuntu-latest
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -211,6 +213,7 @@ jobs:
   executables-test:
     name: Test ${{ matrix.platform }} executable
     needs: executables
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     permissions:
@@ -220,7 +223,7 @@ jobs:
       matrix:
         include:
           - platform: linux-x64
-            runner: ubuntu-latest
+            runner: ubuntu-26.04
             bun: linux-x64
             exe: aidm-api
           - platform: linux-arm64
@@ -228,7 +231,7 @@ jobs:
             bun: linux-aarch64
             exe: aidm-api
           - platform: windows-x64
-            runner: windows-latest
+            runner: windows-2025-vs2026
             bun: windows-x64
             exe: aidm-api.exe
     defaults:
@@ -342,6 +345,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     needs: check
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     outputs:
@@ -354,7 +358,7 @@ jobs:
       matrix:
         include:
           - name: cpu-amd64
-            runner: ubuntu-latest
+            runner: ubuntu-26.04
             dockerfile: Dockerfile
             base: cpu
             platform: linux/amd64
@@ -369,7 +373,7 @@ jobs:
           # have none. So this job only builds it and checks that it starts;
           # gpu-test runs it on a real GPU on Modal.
           - name: gpu-amd64
-            runner: ubuntu-latest
+            runner: ubuntu-26.04
             dockerfile: Dockerfile.gpu
             base: gpu
             platform: linux/amd64
@@ -506,7 +510,8 @@ jobs:
   gpu-test:
     name: GPU test on Modal
     needs: [check, build]
-    runs-on: ubuntu-latest
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     environment: modal-gpu
     permissions:
@@ -558,7 +563,8 @@ jobs:
     name: Tag images
     needs: [check, build, gpu-test]
     if: needs.check.outputs.publish == 'true'
-    runs-on: ubuntu-latest
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       packages: write
@@ -606,7 +612,8 @@ jobs:
     name: Draft release
     needs: [check, manifest, executables-test]
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write
