@@ -32,7 +32,7 @@
         "access-control-allow-origin": "*"
       },
       "body": {
-        "sha256": "9e8dec51c64cdc316b340a556da94ce8072f6fdf81f0d3e8e4d7e99374a24976",
+        "sha256": "a5c396e914c1bc9e6e5608f59dc0e055be70a0bf94589cecaae34dc8248f573f",
         "length": 17862
       }
     }
