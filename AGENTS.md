@@ -78,13 +78,13 @@ These apply to everything you write: code comments, docs, specs, commit messages
 - The Bun version lives in `.bun-version`. Install that version. Changing it is its own pull request.
 - Build the executable: `bun install --frozen-lockfile --production`, then `scripts/build.sh dist/aidm-api`.
 
-Edit, run the unit tests and open pull requests from your own worktree. Do not build images or run the full test on the machine you work on: CI runs the tests on every push and the full test for the classes of change that need it. Never log into, sync files to, or run anything on any other machine; the only shared machines you reach are GitHub's runners, through a push. Read the check; link it in the pull request instead of describing a local run.
+Edit, run the unit tests and open pull requests from your own worktree. Do not build images or run the full test on the machine you work on. Never log into, sync files to, or run anything on any other machine; the only shared machines you reach are GitHub's runners, through a push. Read the check; link it in the pull request instead of describing a local run.
 
 ## Tests
 
-Unit tests: `bun install`, then `bun index.js --test`. Test mode simulates the engine with the sample outputs in `tests/`.
-Full test: `bun tests/compat/run.js --app . -- bun index.js` (the compatibility harness against its golden files), then one real zip upload and task against a running instance.
-The full test is required when a change touches: `index.js`, `config.js`, `libs/`, `tests/compat/`, `scripts/`, `Dockerfile`, `Dockerfile.gpu`, `package.json`, `bun.lock`, `.github/`. CI decides from the paths changed; the reviewer follows `REVIEW.md`.
+Unit tests: `bun test tests/unit`, and the compatibility harness `bun tests/compat/run.js --app . -- bun index.js` against its golden files, both from source in test mode. CI runs both on every push to a branch and on every pull request (`.github/workflows/tests.yml`). Test mode simulates the engine with the sample outputs in `tests/`.
+Full test: the release workflow's dry run, started by a maintainer with `gh workflow run release.yml --ref <branch>`: it builds the executables for each platform and runs the harness on them, builds the images on the engine image, and runs the GPU test on Modal. It is not started by pull request events.
+The full test is required when a change touches: `scripts/`, `Dockerfile`, `Dockerfile.gpu`, `apptainer.def`, `.bun-version`, `package.json`, `bun.lock`, `.github/`, or anything in `libs/` that runs the engine or handles uploads. For such a change, ask the maintainer for a dry run and link it in the pull request; the reviewer follows `REVIEW.md`.
 
 Every bug fix and feature needs a test that fails without it. A test that states the API version (`tests/unit/version-strings.test.js`) fails when any file disagrees with `package.json`; keep it that way.
 
