@@ -84,7 +84,11 @@ Edit, run the unit tests and open pull requests from your own worktree. Do not b
 
 Unit tests: `bun test tests/unit`, and the compatibility harness `bun tests/compat/run.js --app . -- bun index.js` against its golden files, both from source in test mode. CI runs both on every push to a branch and on every pull request (`.github/workflows/tests.yml`). Test mode simulates the engine with the sample outputs in `tests/`.
 Full test: the release workflow's dry run, started by a maintainer with `gh workflow run release.yml --ref <branch>`: it builds the executables for each platform and runs the harness on them, builds the images on the engine image, and runs the GPU test on Modal. It is not started by pull request events.
-The full test is required when a change touches: `scripts/`, `Dockerfile`, `Dockerfile.gpu`, `apptainer.def`, `.bun-version`, `package.json`, `bun.lock`, `.github/`, or anything in `libs/` that runs the engine or handles uploads. For such a change, ask the maintainer for a dry run and link it in the pull request; the reviewer follows `REVIEW.md`.
+
+**Test depth.** Every pull request declares its depth in the description, with one line of reasoning: `Test depth: unit` or `Test depth: full`. The author chooses; the reviewer checks the choice and may raise it, never lower it; a maintainer settles a disagreement. When in doubt, claim the higher one.
+
+- `unit`: documentation, strings, messages, tests, the built-in web page, and changes to route handlers or task logic that the compatibility harness exercises in test mode and that do not touch the engine, uploads, packaging or configuration.
+- `full`: anything that runs the engine or handles uploads in `libs/`, anything that changes the executables or images (`scripts/`, `Dockerfile`, `Dockerfile.gpu`, `apptainer.def`, `.bun-version`, `package.json`, `bun.lock`), the manifest or its signing, and `.github/`. Ask the maintainer for the dry run and link it in the description.
 
 Every bug fix and feature needs a test that fails without it. A test that states the API version (`tests/unit/version-strings.test.js`) fails when any file disagrees with `package.json`; keep it that way.
 
