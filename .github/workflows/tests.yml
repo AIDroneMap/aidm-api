@@ -1,0 +1,51 @@
+# Unit tests and the compatibility harness on every push and pull request.
+#
+# Runs from source with the pinned Bun, in test mode (no engine, no Docker).
+# The executables, the images and the GPU test stay in the release workflow,
+# which proves packaging; this workflow proves the code.
+
+name: Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches-ignore:
+      - master
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Unit tests and compatibility harness
+    # Runner images are pinned on purpose. Moving to a new image is its own PR.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check that every Bun pin names the same version
+        run: scripts/check-bun-pins.sh
+
+      # From the Bun release on GitHub, checked against scripts/bun-sha256sums.txt
+      - name: Download Bun
+        run: |
+          scripts/get-bun.sh linux-x64 "$RUNNER_TEMP/bun"
+          echo "$RUNNER_TEMP/bun" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Unit tests
+        run: bun test tests/unit
+
+      - name: Compatibility harness
+        run: bun tests/compat/run.js --app . -- bun index.js
