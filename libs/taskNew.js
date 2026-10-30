@@ -24,7 +24,7 @@ const crypto = require('crypto');
 const config = require('../config.js');
 const rmdir = require('rimraf');
 const Directories = require('./Directories');
-const mv = require('mv');
+const movePath = require('./move');
 const Task = require('./Task');
 const async = require('async');
 const odmInfo = require('./odmInfo');
@@ -256,7 +256,7 @@ module.exports = {
                 let retries = 0;
 
                 const move = () => {
-                    mv(srcPath, destImagesPath, err => {
+                    movePath(srcPath, destImagesPath, err => {
                         if (!err) cb(); // Done
                         else{
                             if (++retries < 20){
@@ -278,7 +278,7 @@ module.exports = {
 
                     async.series([
                         // Move to project root
-                        cb => mv(path.join(destImagesPath, "seed.zip"), seedFileDst, cb),
+                        cb => movePath(path.join(destImagesPath, "seed.zip"), seedFileDst, cb),
                         
                         // Extract
                         cb => {
@@ -330,7 +330,7 @@ module.exports = {
                     else {
                         async.eachSeries(entries, (entry, cb) => {
                             if (/\.txt$/gi.test(entry) || /^align\.(las|laz|tif)$/gi.test(entry)) {
-                                mv(path.join(destImagesPath, entry), path.join(destGcpPath, entry), cb);
+                                movePath(path.join(destImagesPath, entry), path.join(destGcpPath, entry), cb);
                             }else if (/\.zip$/gi.test(entry)){
                                 fs.unlink(path.join(destImagesPath, entry), cb);
                             } else cb();
