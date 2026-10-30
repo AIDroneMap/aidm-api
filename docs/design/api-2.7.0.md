@@ -154,7 +154,7 @@ Tag order. The API tags `v2.7.0` as soon as `v0.2.0` exists and every 2.7.0 tick
 
 ## Dry-run budget
 
-Five `full` tickets (#69, #25, #8, #47, the release ticket), five maintainer-started exact-head dry runs at minimum, one per pull request, each after its review loop clears and before merge. A second per ticket only if the head moves after the dry run. At most three run in parallel in the repository.
+Five `full` tickets (#69, #25, #8, #47, the release ticket), five maintainer-started exact-head dry runs at minimum, one per pull request. The builder asks for the dry run when the pull request is open, and links the run in the description, so the reviewer judges its results as `REVIEW.md` requires before the review loop can clear. A second per ticket only if the head moves after the dry run. At most three run in parallel in the repository.
 
 Order: #69 first, since it changes the `/info` golden steps every later scenario copies; then #25 and #8 in sequence, since both edit `release.yml`; #47 and #34 whenever ready; the release ticket last.
 
@@ -183,7 +183,7 @@ Before the first dry run the maintainer checks that the `modal-gpu` environment'
 ## What the maintainer does
 
 1. Before the first dry run: check the `modal-gpu` environment's branch policy covers every builder branch prefix.
-2. Start each dry run when a ticket's review loop clears; five at minimum, in the order above.
+2. Start each dry run on the pull request head when the builder asks for it, before the review verdict; five at minimum, in the order above.
 3. After #34 and #25 are merged, run the `--publish-socket` check on his Mac with the command in decision 2, on a dry-run arm64 image.
 4. After the engine tag `v0.2.0`: merge the release ticket after its rehearsal, push `v2.7.0`, and publish the draft release when the tag run is green.
 5. Re-pin aidronemap.dev to `v2.7.0`.
