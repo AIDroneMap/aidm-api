@@ -15,6 +15,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 - Pinned `node-schedule` to 2.1.2. Task cleanup still runs hourly, and runtime checks still run every minute when enabled. `tests/unit/task-schedules.test.js` checks the callbacks, schedules and cancellation (#54).
 - Replace `mv` with filesystem moves and a cross-device copy fallback for uploads, seed files and GCP files. Copy errors keep the source. Regression tests cover moves, collisions and failures (#50).
 
+- Pinned `archiver` to 8.0.0 and switched the ZIP fallback to its `ZipArchive` constructor. Regression tests check complete archive contents, output-close ordering and error callbacks in `tests/unit/archive-fallback.test.js` (#53).
+
 ### Fixed
 
 - `docs/swagger.json`, `docs/index.adoc` and the `/swagger.json` the API serves said version 2.5.0 in 2.6.1. They now say 2.6.1, and a unit test fails when a file that states the API version disagrees with `package.json` (#37).
