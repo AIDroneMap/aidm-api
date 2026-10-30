@@ -30,7 +30,7 @@ const processRunner = require('./processRunner');
 const Directories = require('./Directories');
 const kill = require('tree-kill');
 const S3 = require('./S3');
-const request = require('request');
+const { postJson } = require('./httpClient');
 const utils = require('./utils');
 const { ZipArchive } = require('archiver');
 const appRoot = require('./appRoot');
@@ -722,7 +722,7 @@ module.exports = class Task{
                             logger.warn(`Webhook invokation failed, will not retry: ${hook}`);
                             return;
                         }
-                        request.post(hook, { json },
+                        postJson(hook, json,
                             (error, response) => {
                                 if (error || response.statusCode != 200){
                                     logger.warn(`Webhook invokation failed, will retry in a bit: ${hook}`);
