@@ -11,7 +11,7 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 ### Changed
 
 - Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
-- Replace direct `rimraf` cleanup calls with asynchronous recursive `fs.rm`. Missing paths are harmless, and removal errors still reach callbacks. Keep the transitive copy required by `mv`. Regression tests cover task deletion, upload cleanup and stale directories (#49).
+- Replace direct `rimraf` cleanup calls with asynchronous recursive `fs.rm`. Missing paths are harmless, and removal errors still reach callbacks. The combined dependency cleanup also removes the unused transitive copy. Regression tests cover task deletion, upload cleanup and stale directories (#49).
 
 - Task IDs use `crypto.randomUUID()` instead of the direct `uuid` dependency (#48). UUIDv4 format, uniqueness and supplied-ID validation are covered by `tests/unit/task-uuid.test.js`.
 - Pinned `node-schedule` to 2.1.2. Task cleanup still runs hourly, and runtime checks still run every minute when enabled. `tests/unit/task-schedules.test.js` checks the callbacks, schedules and cancellation (#54).
@@ -27,6 +27,7 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Fixed
 
+- Without `7z`, wildcard outputs now reach `glob` and are included in `all.zip` instead of being skipped or throwing because the import was missing. Temporary engine-options files that cannot be deleted now produce a warning instead of a `TypeError`. Regression coverage is in `tests/unit/error-paths.test.js` (#14).
 - `docs/swagger.json`, `docs/index.adoc` and the `/swagger.json` the API serves said version 2.5.0 in 2.6.1. They now say 2.6.1, and a unit test fails when a file that states the API version disagrees with `package.json` (#37).
 
 ## 2.6.1

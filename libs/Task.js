@@ -33,6 +33,7 @@ const S3 = require('./S3');
 const { postJson } = require('./httpClient');
 const utils = require('./utils');
 const { ZipArchive } = require('archiver');
+const glob = require('glob');
 const appRoot = require('./appRoot');
 
 const statusCodes = require('./statusCodes');
@@ -382,12 +383,12 @@ module.exports = class Task{
                     // Process files and directories first
                     files.forEach(file => {
                         let filePath = path.join(sourcePath, file);
+                        let isGlob = /\*/.test(file);
 
                         // Skip non-existing items
-                        if (!fs.existsSync(filePath)) return;
+                        if (!isGlob && !fs.existsSync(filePath)) return;
 
-                        let isGlob = /\*/.test(file),
-                            isDirectory = !isGlob && fs.lstatSync(filePath).isDirectory();
+                        let isDirectory = !isGlob && fs.lstatSync(filePath).isDirectory();
 
                         if (isDirectory){
                             archive.directory(filePath, file);
