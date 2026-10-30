@@ -8,6 +8,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Changed
 
+- Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+
 - ZIP URL downloads and task webhooks use built-in HTTP support instead of the deprecated `request` dependency. Downloads keep HEAD before GET, redirects and the existing invalid-URL and connection-refused messages. Webhooks keep their JSON payloads and retry policy. Regression tests in `tests/unit/http-client.test.js` cover these cases and failed download streams (#10).
 
 ### Fixed
