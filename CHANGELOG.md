@@ -8,6 +8,7 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Fixed
 
+- Without `7z`, wildcard outputs now reach `glob` and are included in `all.zip` instead of being skipped or throwing because the import was missing. Temporary engine-options files that cannot be deleted now produce a warning instead of a `TypeError`. Regression coverage is in `tests/unit/error-paths.test.js` (#14).
 - `docs/swagger.json`, `docs/index.adoc` and the `/swagger.json` the API serves said version 2.5.0 in 2.6.1. They now say 2.6.1, and a unit test fails when a file that states the API version disagrees with `package.json` (#37).
 
 ## 2.6.1
