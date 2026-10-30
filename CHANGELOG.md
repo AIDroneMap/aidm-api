@@ -13,6 +13,7 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 ### Changed
 
 - Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+- Added `scripts/release-manifest.js`, a Bun script with three commands: `build` writes the release manifest from the digest files and the image sizes in the registry, `sign` signs it with an Ed25519 key read from standard input, and `verify` checks a signature against a public key file. `package.json` gains the `minimumUiVersion` key. Unit tests in `tests/unit/release-manifest.test.js` cover the sequence rule, the size rule, byte-exact output and the sign and verify round trip; the dry run of the pull request is the full test (#72).
 - Replace direct `rimraf` cleanup calls with asynchronous recursive `fs.rm`. Missing paths are harmless, and removal errors still reach callbacks. The combined dependency cleanup also removes the unused transitive copy. Regression tests cover task deletion, upload cleanup and stale directories (#49).
 
 - Task IDs use `crypto.randomUUID()` instead of the direct `uuid` dependency (#48). UUIDv4 format, uniqueness and supplied-ID validation are covered by `tests/unit/task-uuid.test.js`.
