@@ -6,6 +6,10 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ## Unreleased
 
+### Changed
+
+- Pinned `archiver` to 8.0.0 and switched the ZIP fallback to its `ZipArchive` constructor. Regression tests check complete archive contents, output-close ordering and error callbacks in `tests/unit/archive-fallback.test.js` (#53).
+
 ### Fixed
 
 - `docs/swagger.json`, `docs/index.adoc` and the `/swagger.json` the API serves said version 2.5.0 in 2.6.1. They now say 2.6.1, and a unit test fails when a file that states the API version disagrees with `package.json` (#37).

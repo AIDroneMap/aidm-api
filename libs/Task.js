@@ -33,7 +33,7 @@ const kill = require('tree-kill');
 const S3 = require('./S3');
 const request = require('request');
 const utils = require('./utils');
-const archiver = require('archiver');
+const { ZipArchive } = require('archiver');
 const appRoot = require('./appRoot');
 
 const statusCodes = require('./statusCodes');
@@ -343,7 +343,7 @@ module.exports = class Task{
                     this.output.push(`Compressing ${outputFilename}\n`);
 
                     let output = fs.createWriteStream(this.getAssetsArchivePath(outputFilename));
-                    let archive = archiver.create('zip', {
+                    let archive = new ZipArchive({
                             zlib: { level: 1 } // Sets the compression level (1 = best speed since most assets are already compressed)
                         });
 

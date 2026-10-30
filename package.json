@@ -23,7 +23,7 @@
   "homepage": "https://github.com/AIDroneMap/aidm-api#readme",
   "dependencies": {
     "@dabh/diagnostics": "2.0.3",
-    "archiver": "^3.0.0",
+    "archiver": "8.0.0",
     "async": "^2.6.1",
     "@aws-sdk/client-s3": "3.400.0",
     "@aws-sdk/lib-storage": "3.400.0",
