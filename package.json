@@ -21,6 +21,7 @@
     "url": "https://github.com/AIDroneMap/aidm-api/issues"
   },
   "homepage": "https://github.com/AIDroneMap/aidm-api#readme",
+  "minimumUiVersion": "0.1.0",
   "dependencies": {
     "@dabh/diagnostics": "2.0.3",
     "archiver": "8.0.0",
