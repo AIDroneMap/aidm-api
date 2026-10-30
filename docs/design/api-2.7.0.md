@@ -44,7 +44,7 @@ Content, in the schema aidm-ui parses:
 
 Digests come from the `digest-*` artifacts the build jobs already upload (cpu-amd64, cpu-arm64, gpu-amd64). Size is the sum of the compressed layer sizes plus the config size of the platform manifest, read from the registry after the push with `docker buildx imagetools inspect <image>@<digest> --raw`. That is the rule aidm-ui's `server/manifest/builtin/README.md` states.
 
-Where it is built. A Bun script in `scripts/` with three commands: build the manifest from the version, the engine version, the image name and the digest files; sign it with a PKCS#8 PEM private key read from standard input; verify a signature against a public key file. Signing and verification use WebCrypto, which Bun provides, so no dependency is added and no aidm-ui checkout happens at release time. The JSON is written once, with fixed formatting, and the signature covers exactly those bytes.
+Where it is built. Two tickets, because `AGENTS.md` says a pull request that touches `.github/` changes nothing else: #72 is the script and the `package.json` key, #73 is the workflow and the public key file. A Bun script in `scripts/` with three commands: build the manifest from the version, the engine version, the image name and the digest files; sign it with a PKCS#8 PEM private key read from standard input; verify a signature against a public key file. Signing and verification use WebCrypto, which Bun provides, so no dependency is added and no aidm-ui checkout happens at release time. The JSON is written once, with fixed formatting, and the signature covers exactly those bytes.
 
 Jobs in `release.yml`:
 
@@ -70,7 +70,7 @@ The socket is created with mode 0600. The API runs as root in the image, and App
 
 On Windows, `--socket` or a `socket` key stops the start with an error saying the option is not supported there. Bun documents sockets for `Bun.serve` and `fetch` but says nothing about Windows, where Node itself requires a `\\.\pipe\` name, and no client needs it: Docker and Podman keep the port.
 
-The check that Apple's `--publish-socket` relay can open the socket cannot run in CI or on a scratch machine. The maintainer runs it on his Mac with an arm64 CPU image from a dry run that includes both the socket code and the three-image push, which is any dry run after #34 and #25 are merged, or the release rehearsal:
+The check that Apple's `--publish-socket` relay can open the socket cannot run in CI or on a scratch machine. The maintainer runs it on his Mac with an arm64 CPU image from a dry run that includes both the socket code and the three-image push, which is any dry run after #34 and #73 are merged, or the release rehearsal:
 
 ```
 container run --rm --name api-socket-check \
@@ -114,7 +114,7 @@ Which binaries. Official 7-Zip 26.05 from its GitHub releases, pinned by SHA-256
 
 A pinned, checksummed download is the pattern `scripts/get-bun.sh` sets, and it needs no compiler in the release job. A source build with `DISABLE_RAR=1` was tried on the scratch machine and works in seconds on x64; it was not chosen, because arm64 would need a cross-compiler or a new job on the arm runner.
 
-A new `scripts/get-7zip.sh <platform> <dest>` downloads, verifies and unpacks; it uses the Linux `7zzs` it just fetched to open the Windows Extra package, so the build runner needs no 7-Zip of its own. `scripts/package.sh` places the tool at `apps/7z/7zzs` (Linux) or `apps/7z/7za.exe` (Windows) in the archive, and the notices generator takes each package's own `License.txt` from the downloaded package, so the licence in `THIRD-PARTY-NOTICES.txt` is from the exact pinned build.
+Two tickets, for the same `.github/` rule: #74 bundles the tool, #75 changes the workflow steps that test it. A new `scripts/get-7zip.sh <platform> <dest>` downloads, verifies and unpacks; it uses the Linux `7zzs` it just fetched to open the Windows Extra package, so the build runner needs no 7-Zip of its own. `scripts/package.sh` places the tool at `apps/7z/7zzs` (Linux) or `apps/7z/7za.exe` (Windows) in the archive, and the notices generator takes each package's own `License.txt` from the downloaded package, so the licence in `THIRD-PARTY-NOTICES.txt` is from the exact pinned build.
 
 Lookup order. In a compiled executable `libs/apps.js` looks for the bundled 7-Zip next to the executable first and uses it for both extraction and `all.zip`. `PATH` lookup (`unzip`, then `7z`) stays as the fallback, and as the whole rule in source mode and in the images, which install both tools and ship no `apps/` folder. An archive that prefers its own tool behaves the same on every machine.
 
@@ -146,17 +146,19 @@ Tag order. The API tags `v2.7.0` as soon as `v0.2.0` exists and every 2.7.0 tick
 | Ticket | Seams | Depth |
 | --- | --- | --- |
 | #69 upstream fields removal | The four golden files updated in the same pull request; `tests/unit/systeminformation.test.js` and `version-strings` pass; the harness passes. | `full` (`package.json`) |
-| #25 manifest | Unit tests for the script: sequence rule, size rule from a stored platform manifest, byte-exact output, sign and verify round trip, verify fails on a wrong key. The dry run proves the jobs: three-variant manifest, aidm-ui's verifier accepts it, artifact present. | `full` |
+| #72 manifest script | Unit tests for the script: sequence rule, size rule from a stored platform manifest, byte-exact output, sign and verify round trip, verify fails on a wrong key. | `full` (`scripts/`, `package.json`) |
+| #73 manifest workflow | The dry run proves the jobs: three-variant manifest, aidm-ui's verifier accepts it, artifact present. `.github/` only. | `full` |
 | #34 socket | A unit test starts the API in test mode with `--socket` in a child process and calls `/info` over the socket; stale socket and wrong-file cases; Windows refusal. One `socket` scenario in the harness whose requests all go through the socket and whose golden file must match the `default` steps for the same routes, skipped on Windows. The dry run runs the scenario on the Linux executables and the refusal on the Windows one. | `full` (a new configuration key and flag; `AGENTS.md` keeps configuration out of `unit`) |
 | #47 folder | A unit test starts the API with `--images_root` on a temporary folder of small files, creates a task through the chunked route, checks the images folder holds links, the source files, sizes and modification times are unchanged after the task completes, and the links go with the task. Unit tests for the refusals (no root, outside the root, unreadable, empty, with `zipurl`). One `images-path` scenario with its own golden file: `/info` with the capability and a task from a folder under `tests/`. | `full` |
-| #8 tools | Unit tests for `get-7zip.sh` (checksum mismatch fails) and for the lookup order in `libs/apps.js`; the harness equivalence of the two corrupt-zip messages. The dry run runs the harness on each executable with no `PATH` tools and with no `apps/` folder, Windows included. | `full` |
-| Release ticket | The version test; the harness; the dry run on the final branch as the rehearsal. | `full` |
+| #74 bundled 7-Zip | Unit tests for `get-7zip.sh` (checksum mismatch fails) and for the lookup order in `libs/apps.js`; the harness equivalence of the two corrupt-zip messages; the dry run shows the tool in each archive. | `full` |
+| #75 executables test | The dry run runs the harness on each executable with no `PATH` tools and with no `apps/` folder, Windows included. `.github/` only. | `full` |
+| #76 release | The version test; the harness; the dry run on the final branch as the rehearsal. | `full` |
 
 ## Dry-run budget
 
-Six `full` tickets (#69, #25, #34, #8, #47, the release ticket), six maintainer-started exact-head dry runs at minimum, one per pull request. The socket ticket is `full` because it adds a configuration key and a flag, which `AGENTS.md` keeps out of `unit`; the grilling first put it at `unit` and the review raised it. The builder asks for the dry run when the pull request is open, and links the run in the description, so the reviewer judges its results as `REVIEW.md` requires before the review loop can clear. A second per ticket only if the head moves after the dry run. At most three run in parallel in the repository.
+Eight `full` tickets (#69, #72, #73, #34, #47, #74, #75, #76), eight maintainer-started exact-head dry runs at minimum, one per pull request. The socket ticket is `full` because it adds a configuration key and a flag, which `AGENTS.md` keeps out of `unit`; the grilling first put it at `unit` and the review raised it. The manifest and the tools each take two tickets because a pull request that touches `.github/` changes nothing else; the grilling counted them as one each. The builder asks for the dry run when the pull request is open, and links the run in the description, so the reviewer judges its results as `REVIEW.md` requires before the review loop can clear. A second per ticket only if the head moves after the dry run. At most three run in parallel in the repository.
 
-Order: #69 first, since it changes the `/info` golden steps every later scenario copies; then #25 and #8 in sequence, since both edit `release.yml`; #34 and #47 whenever ready; the release ticket last.
+Order: #69 first, since it changes the `/info` golden steps every later scenario copies; #72 then #73; #74 any time, #75 after #74 and #73, since #73 and #75 both edit `release.yml`; #34 and #47 after #69; #76 last.
 
 Before the first dry run the maintainer checks that the `modal-gpu` environment's branch policy covers every builder branch prefix (`feat/`, `fix/`, `docs/`, `chore/`, `ci/`, `test/`).
 
@@ -183,8 +185,8 @@ Before the first dry run the maintainer checks that the `modal-gpu` environment'
 ## What the maintainer does
 
 1. Before the first dry run: check the `modal-gpu` environment's branch policy covers every builder branch prefix.
-2. Start each dry run on the pull request head when the builder asks for it, before the review verdict; six at minimum, in the order above.
-3. After #34 and #25 are merged, run the `--publish-socket` check on his Mac with the command in decision 2, on a dry-run arm64 image.
+2. Start each dry run on the pull request head when the builder asks for it, before the review verdict; eight at minimum, in the order above.
+3. After #34 and #73 are merged, run the `--publish-socket` check on his Mac with the command in decision 2, on a dry-run arm64 image.
 4. After the engine tag `v0.2.0`: merge the release ticket after its rehearsal, push `v2.7.0`, and publish the draft release when the tag run is green.
 5. Re-pin aidronemap.dev to `v2.7.0`.
 
