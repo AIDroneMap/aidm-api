@@ -8,6 +8,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Changed
 
+- Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+
 - Upgraded `busboy` to exactly 1.6.0 and adapted multipart upload parsing. Upload regression tests cover fields, safe filenames, completion, malformed input, interrupted streams and cancellation in `tests/unit/storage.test.js`. The source compatibility harness passes its available scenarios with unchanged golden files (#51).
 
 ### Fixed
