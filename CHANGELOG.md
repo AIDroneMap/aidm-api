@@ -25,6 +25,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 - ZIP URL downloads and task webhooks use built-in HTTP support instead of the deprecated `request` dependency. Downloads keep HEAD before GET, redirects and the existing invalid-URL and connection-refused messages. Webhooks keep their JSON payloads and retry policy. Regression tests in `tests/unit/http-client.test.js` cover these cases and failed download streams (#10).
 
+- The API can listen on a Unix socket path next to its port, set with `--socket <path>` or the `socket` key of the config file. Every route and the token check are the same on both. The API creates the socket with mode 0600 and removes it on SIGTERM and SIGINT. At start it removes a socket left at the path by a crash; any other file there stops the start and stays. Windows refuses the option with an error. Evidence: `tests/unit/task-api-socket.test.js`, the `socket` and `socket-token` scenarios of the compatibility harness (the Windows executable checks the refusal instead), and the release dry run linked in the pull request (#34).
+
 - Pin `systeminformation` to 5.33.18. Callback, `/info` field mapping and credential-free S3 upload sizing tests in `tests/unit/systeminformation.test.js` preserve the CPU and memory contracts (#52).
 
 - Upgraded `busboy` to exactly 1.6.0 and adapted multipart upload parsing. Upload regression tests cover fields, safe filenames, completion, malformed input, interrupted streams and cancellation in `tests/unit/storage.test.js`. The source compatibility harness passes its available scenarios with unchanged golden files (#51).

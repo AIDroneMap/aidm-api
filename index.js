@@ -43,6 +43,7 @@ const S3 = require('./libs/S3');
 const auth = require('./libs/auth/factory').fromConfig(config);
 const authCheck = auth.getMiddleware();
 const taskNew = require('./libs/taskNew');
+const taskApiSocket = require('./libs/taskApiSocket');
 
 app.use(cors())
 app.options('*', cors())
@@ -56,6 +57,7 @@ const jsonBodyParser = bodyParser.json();
 
 let taskManager;
 let server;
+let socket; // {server, close} when config.socket is set
 
 /** @swagger
  *  /task/new/init:
@@ -908,6 +910,7 @@ let gracefulShutdown = done => {
         cb => {
             logger.info("Closing server");
             server.close();
+            if (socket) socket.close();
             logger.info("Exiting...");
             process.exit(0);
         }
@@ -934,6 +937,7 @@ if (!config.hasUnzip && !config.has7z) logger.warn("Neither unzip nor 7z is inst
 
 
 let commands = [
+    cb => cb(config.socket ? taskApiSocket.checkOption(config.socket, process.platform) : null),
     cb => odmInfo.initialize(cb),
     cb => {
         async.parallel({
@@ -974,12 +978,23 @@ let commands = [
         }else{
             cb(new Error(`Invalid port: ${config.port}`));
         }
+    },
+    cb => {
+        if (!config.socket) return cb();
+        taskApiSocket.listen(app, config.socket, (err, s) => {
+            if (err) return cb(err);
+            socket = s;
+            socket.server.on('error', e => logger.error(`Socket server error: ${e.message}`));
+            logger.info('Server has started on socket ' + config.socket);
+            cb();
+        });
     }
 ];
 
 if (config.powercycle) {
     commands.push(cb => {
         logger.info("Power cycling is set, application will shut down...");
+        if (socket) socket.close();
         process.exit(0);
     });
 }

@@ -31,6 +31,7 @@ Usage: node index.js [options]
 Options:
 	--config <path>	Path to the configuration file (default: config-default.json)	
 	-p, --port <number> 	Port to bind the server to, or "auto" to automatically find an available port (default: 3000)
+	--socket <path>	Also listen on this Unix socket path, with mode 0600. Removes a stale socket at the path; any other file there stops the start. Not supported on Windows. (default: none)
 	--odm_path <path>	Path to the AIDM engine's code (deprecated)	(default: /code)
 	--odx_path <path>	Path to the AIDM engine's code (default: /code)
 	--log_level <logLevel>	Set log level verbosity (default: info)
@@ -65,7 +66,7 @@ error | warn | info | verbose | debug | silly
 	process.exit(0);
 }
 
-const allOpts = ["slice","help","config","odm_path","odx_path","log_level","port","p",
+const allOpts = ["slice","help","config","odm_path","odx_path","log_level","port","p","socket",
 "deamonize","daemon","d","parallel_queue_processing","q",
 "cleanup_tasks_after","cleanup_uploads_after","test","test_skip_orthophotos",
 "test_skip_dems","test_drop_uploads","test_fail_tasks","test_seconds",
@@ -122,6 +123,7 @@ config.logger.maxFiles = fromConfigFile("logger.maxFiles", 10); // Max number of
 config.logger.logDirectory = fromConfigFile("logger.logDirectory", ''); // Set this to a full path to a directory - if not set logs will be written to the application directory.
 
 config.port = (argv.port || argv.p || fromConfigFile("port", process.env.PORT || "auto"));
+config.socket = argv.socket || fromConfigFile("socket", "");
 config.deamon = argv.deamonize || argv.daemon || argv.d || fromConfigFile("daemon", false);
 config.parallelQueueProcessing = parseInt(argv.parallel_queue_processing || argv.q || fromConfigFile("parallelQueueProcessing", 1));
 config.cleanupTasksAfter = parseInt(argv.cleanup_tasks_after || fromConfigFile("cleanupTasksAfter", 2880));
