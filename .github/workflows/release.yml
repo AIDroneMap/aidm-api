@@ -755,10 +755,15 @@ jobs:
   # Dry runs only. Signs the manifest with a key made in this run, then
   # checks it with aidm-ui's own verifier, so a manifest the UI would refuse
   # fails the dry run. The private key stays in the runner's temp folder.
+  # The condition names its own status check: the implicit success() also
+  # looks at tag-images, which manifest needs and a dry run skips.
   manifest-check:
     name: Check release manifest with aidm-ui
     needs: [check, manifest]
-    if: needs.check.outputs.publish != 'true'
+    if: >-
+      !cancelled()
+      && needs.manifest.result == 'success'
+      && needs.check.outputs.publish != 'true'
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 10
