@@ -1,7 +1,6 @@
 {
   "name": "NodeODX",
   "version": "2.6.1",
-  "upstreamVersion": "NodeODX 2.4.0",
   "description": "REST task API of the AIDM photogrammetry engine",
   "main": "index.js",
   "scripts": {

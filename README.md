@@ -118,9 +118,9 @@ Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.6.1 --help` for the full list
 
 ## API
 
-The [API reference](https://aidronemap.dev/api/reference/) documents every endpoint. The specification files in this repository are [docs/swagger.json](docs/swagger.json) and [docs/index.adoc](docs/index.adoc). It is compatible with NodeODX API 2.x, and `GET /info` adds two fields, `upstreamVersion` and `engineUpstreamVersion`. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
+The [API reference](https://aidronemap.dev/api/reference/) documents every endpoint. The specification files in this repository are [docs/swagger.json](docs/swagger.json) and [docs/index.adoc](docs/index.adoc). It is compatible with the NodeODM task API. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
 
-The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0. The API version never goes below 2.4.0, because PyODX and WebODM read it from `GET /info` and switch to older code paths below 1.4.0 and 1.5.1.
+The API version follows semantic versioning. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0. The API version stays at or above 2.4.0, because PyODX and WebODM read it from `GET /info` and switch to older code paths below certain versions.
 
 Any change to the API must stay compatible: new fields and endpoints may be added, existing ones are not renamed or removed.
 

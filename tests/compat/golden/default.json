@@ -28,12 +28,12 @@
       "status": 200,
       "headers": {
         "content-type": "application/json; charset=UTF-8",
-        "content-length": "17862",
+        "content-length": "17621",
         "access-control-allow-origin": "*"
       },
       "body": {
-        "sha256": "a5c396e914c1bc9e6e5608f59dc0e055be70a0bf94589cecaae34dc8248f573f",
-        "length": 17862
+        "sha256": "f35ae505ca775b3f8fa656555f50e76d0f361a2004d1d6545d4601a09c36c236",
+        "length": 17621
       }
     }
   },
@@ -98,9 +98,7 @@
         "maxImages": null,
         "maxParallelTasks": 1,
         "engineVersion": "?",
-        "engine": "odx",
-        "upstreamVersion": "NodeODX 2.4.0",
-        "engineUpstreamVersion": "?"
+        "engine": "odx"
       }
     }
   },
@@ -4273,9 +4271,7 @@
         "maxImages": null,
         "maxParallelTasks": 1,
         "engineVersion": "?",
-        "engine": "odx",
-        "upstreamVersion": "NodeODX 2.4.0",
-        "engineUpstreamVersion": "?"
+        "engine": "odx"
       }
     }
   }

@@ -21,9 +21,7 @@
         "maxImages": null,
         "maxParallelTasks": 1,
         "engineVersion": "?",
-        "engine": "odx",
-        "upstreamVersion": "NodeODX 2.4.0",
-        "engineUpstreamVersion": "?"
+        "engine": "odx"
       }
     }
   },
@@ -161,9 +159,7 @@
         "maxImages": null,
         "maxParallelTasks": 1,
         "engineVersion": "?",
-        "engine": "odx",
-        "upstreamVersion": "NodeODX 2.4.0",
-        "engineUpstreamVersion": "?"
+        "engine": "odx"
       }
     }
   }
