@@ -25,7 +25,6 @@ const logger = require('./logger');
 let odmOptions = null;
 let odmVersion = null;
 let engine = null;
-let engineUpstreamVersion = null;
 
 module.exports = {
     initialize: function(done){
@@ -43,18 +42,6 @@ module.exports = {
 
         odmRunner.getVersion((err, version) => {
             odmVersion = version;
-            done(null, version);
-        });
-    },
-
-    getEngineUpstreamVersion: function(done){
-        if (engineUpstreamVersion){
-            done(null, engineUpstreamVersion);
-            return;
-        }
-
-        odmRunner.getUpstreamVersion((err, version) => {
-            engineUpstreamVersion = version;
             done(null, version);
         });
     },

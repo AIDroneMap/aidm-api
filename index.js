@@ -753,22 +753,15 @@ app.get('/options', authCheck, (req, res) => {
  *             engine:
  *               type: string
  *               description: Lowercase identifier of processing engine
- *             upstreamVersion:
- *               type: string
- *               description: Name and version of the NodeODX release this API is based on
- *             engineUpstreamVersion:
- *               type: string
- *               description: Name and version of the ODX release the processing engine is based on
  */
 app.get('/info', authCheck, (req, res) => {
     async.parallel({
         cpu: cb => si.cpu(data => cb(null, data)),
         mem: cb => si.mem(data => cb(null, data)),
         engineVersion: odmInfo.getVersion,
-        engine: odmInfo.getEngine,
-        engineUpstreamVersion: odmInfo.getEngineUpstreamVersion
+        engine: odmInfo.getEngine
     }, (_, data) => {
-        const { cpu, mem, engineVersion, engine, engineUpstreamVersion } = data;
+        const { cpu, mem, engineVersion, engine } = data;
 
         // For testing
         if (req.query._debugUnauthorized){
@@ -786,9 +779,7 @@ app.get('/info', authCheck, (req, res) => {
             maxImages: config.maxImages,
             maxParallelTasks: config.parallelQueueProcessing,
             engineVersion,
-            engine,
-            upstreamVersion: packageJson.upstreamVersion,
-            engineUpstreamVersion
+            engine
         });
     });
 });
@@ -931,10 +922,9 @@ let commands = [
     cb => {
         async.parallel({
             engine: odmInfo.getEngine,
-            engineVersion: odmInfo.getVersion,
-            engineUpstreamVersion: odmInfo.getEngineUpstreamVersion
+            engineVersion: odmInfo.getVersion
         }, (_, e) => {
-            logger.info(`AIDM API ${packageJson.version} (${packageJson.upstreamVersion}), engine ${e.engine} ${e.engineVersion} (${e.engineUpstreamVersion})`);
+            logger.info(`AIDM API ${packageJson.version}, engine ${e.engine} ${e.engineVersion}`);
             cb();
         });
     },

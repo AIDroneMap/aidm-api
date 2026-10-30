@@ -93,13 +93,6 @@ module.exports = {
         });
     },
 
-    getUpstreamVersion: function(done){
-        fs.readFile(path.join(config.odx_path, 'UPSTREAM_VERSION'), {encoding: 'utf8'}, (err, content) => {
-            if (err) done(null, "?");
-            else done(null, content.split("\n").map(l => l.trim())[0]);
-        });
-    },
-
     getEngine: function(done){
         fs.readFile(path.join(config.odx_path, 'ENGINE'), {encoding: 'utf8'}, (err, content) => {
             if (err) done(null, "odx"); // Assumed

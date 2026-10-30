@@ -33,6 +33,10 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 - Without `7z`, wildcard outputs now reach `glob` and are included in `all.zip` instead of being skipped or throwing because the import was missing. Temporary engine-options files that cannot be deleted now produce a warning instead of a `TypeError`. Regression coverage is in `tests/unit/error-paths.test.js` (#14).
 - `docs/swagger.json`, `docs/index.adoc` and the `/swagger.json` the API serves said version 2.5.0 in 2.6.1. They now say 2.6.1, and a unit test fails when a file that states the API version disagrees with `package.json` (#37).
 
+### Removed
+
+- `GET /info` no longer returns `upstreamVersion` and `engineUpstreamVersion`, and the startup line no longer prints them. This is a contract change made under the 2.7.0 spec and ADR 0004: a client that read either key now finds it absent, and `version` is the API version. The four golden files that record `/info` (`default`, `limits`, `token`, `zip-input-no-tools`) change only by the two keys (and, in `default`, the length and hash of the served `swagger.json`), and `tests/unit/systeminformation.test.js` checks that the response has neither.
+
 ## 2.6.1
 
 AIDM API now runs on Bun and ships as one compiled executable. API behaviour is unchanged.

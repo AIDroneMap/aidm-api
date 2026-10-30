@@ -71,8 +71,7 @@ test('/info maps callback data to totalMemory, availableMemory and logical cpuCo
         './libs/auth/factory': { fromConfig: () => ({ getMiddleware() {} }) },
         './libs/odmInfo': {
             getVersion: cb => cb(null, 'test-version'),
-            getEngine: cb => cb(null, 'test-engine'),
-            getEngineUpstreamVersion: cb => cb(null, 'test-upstream')
+            getEngine: cb => cb(null, 'test-engine')
         },
         express,
         async: { ...require('async'), series() {} },
@@ -100,10 +99,10 @@ test('/info maps callback data to totalMemory, availableMemory and logical cpuCo
         maxImages: 37,
         maxParallelTasks: 2,
         engineVersion: 'test-version',
-        engine: 'test-engine',
-        upstreamVersion: require('../../package.json').upstreamVersion,
-        engineUpstreamVersion: 'test-upstream'
+        engine: 'test-engine'
     });
+    expect(Object.keys(result)).not.toContain('upstreamVersion');
+    expect(Object.keys(result)).not.toContain('engineUpstreamVersion');
 });
 
 for (const [availableMiB, queueSize, partMiB] of [
