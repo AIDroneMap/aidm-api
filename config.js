@@ -47,6 +47,7 @@ Options:
 	--powercycle	When set, the application exits immediately after powering up. Useful for testing launch and compilation issues.
 	--token <token>	Sets a token that needs to be passed for every request. This can be used to limit access to the node only to token holders. (default: none)
 	--max_images <number>	Specify the maximum number of images that this processing node supports. (default: unlimited)
+	--images_root <path>	Folder under which a task may be created from a folder with imagesPath. Without it, imagesPath is refused. (default: none)
 	--webhook <url>	Specify a POST URL endpoint to be invoked when a task completes processing (default: none)
 	--s3_endpoint <url>	Specify a S3 endpoint (for example, nyc3.digitaloceanspaces.com) to upload completed task results to. (default: do not upload to S3)
 	--s3_bucket <bucket>	Specify a S3 bucket name where to upload completed task results to. (default: none)
@@ -68,7 +69,7 @@ const allOpts = ["slice","help","config","odm_path","odx_path","log_level","port
 "deamonize","daemon","d","parallel_queue_processing","q",
 "cleanup_tasks_after","cleanup_uploads_after","test","test_skip_orthophotos",
 "test_skip_dems","test_drop_uploads","test_fail_tasks","test_seconds",
-"powercycle","token","max_images","webhook","s3_endpoint","s3_bucket",
+"powercycle","token","max_images","images_root","webhook","s3_endpoint","s3_bucket",
 "s3_force_path_style","s3_access_key","s3_secret_key","s3_signature_version",
 "s3_acl","s3_upload_everything","s3_ignore_ssl","max_concurrency","max_runtime"];
 
@@ -135,6 +136,7 @@ config.powercycle = argv.powercycle || fromConfigFile("powercycle", false);
 config.token = argv.token || fromConfigFile("token", "");
 config.authorizedIps = fromConfigFile("authorizedIps", []);
 config.maxImages = parseInt(argv.max_images || fromConfigFile("maxImages", "")) || null;
+config.imagesRoot = String(argv.images_root || fromConfigFile("imagesRoot", "") || "");
 config.webhook = argv.webhook || fromConfigFile("webhook", "");
 config.s3Endpoint = argv.s3_endpoint || fromConfigFile("s3Endpoint", "");
 config.s3Bucket = argv.s3_bucket || fromConfigFile("s3Bucket", "");

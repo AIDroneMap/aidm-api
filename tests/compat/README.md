@@ -19,7 +19,7 @@ bun tests/compat/run.js --app <dir> [--update] [--only <scenario>] [--keep] -- <
 
 - `--app <dir>`: the folder that holds the runnable API. Today that is the repository root. Later it can be an unpacked release archive with a compiled executable.
 - `<command> [args...]`: how to start the API, for example `bun index.js` or `./aidm-api` (or `aidm-api.exe`). If the first element is a relative path that exists inside the app copy, the harness uses that file. The harness adds `--test --port <free port>` and the flags of the scenario.
-- `--update`: write the golden files instead of comparing. Record them only with both `unzip` and `7z` on PATH (the harness refuses otherwise). The one exception is `--only zip-input-no-tools`, which can be recorded on any machine.
+- `--update`: write the golden files instead of comparing. Record them only with both `unzip` and `7z` on PATH (the harness refuses otherwise). The exceptions are `--only zip-input-no-tools` and `--only images-path`, which can be recorded on any machine.
 - `--only <scenario>`: run one scenario.
 - `--keep`: keep the temporary copy of the app (for debugging).
 
@@ -60,6 +60,7 @@ Test images and zip files are generated at run time from seeded random bytes. No
 | `limits` | `--max_images 1` | `maxImages` in `/info`, limit errors on direct and chunked upload |
 | `skip-assets` | `--test_skip_orthophotos --test_skip_dems` | Content of `all.zip` without orthophotos and DEMs |
 | `webhook` | `--webhook http://127.0.0.1:<port>/hook` | The webhook call (method, path, content type, body), and the retry after a 500 answer |
+| `images-path` | `--images_root tests/images-root` | `imagesPath` in `/info`, a task from a folder through the chunked route (with a GCP file uploaded next to it) and through `/task/new`, the images folder holding only the top-level accepted files, the source folder unchanged after the tasks are removed, and the refusals: outside the root, missing folder, no supported file, with `zipurl`. The scenario creates the folder in the app copy at run time, with seeded bytes, a subfolder and a `.txt` file. |
 
 Each golden file is `golden/<scenario>.json`: an array of `{ step, request, response }`. A response has `status`, a few headers and `body`.
 
@@ -74,6 +75,7 @@ Only values that change between runs are changed. Everything else is compared ex
 - `processingTime` becomes `<number>` when it is a number of 0 or more. `-1` is kept because it means "not processed".
 - `/info`: `totalMemory`, `availableMemory` and `cpuCores` become `<number>` (when they are numbers). `version` becomes `<version>` when it looks like `1.2.3`, because it changes with every release and not with the runtime. `taskQueueCount` is kept.
 - The port of the API, of the local zip server and of the hook server becomes `<port>` where it appears in strings.
+- The path of the app copy becomes `<app>` where it appears in strings, and the rest of that path is written with forward slashes, so a path sent in `images-path` reads the same on every platform.
 - Headers: only `status`, `content-type`, `content-disposition`, `content-length` and `access-control-allow-origin` are recorded. `content-length` is recorded as is for static files. For JSON bodies it is recorded as `<body-length>` when it equals the real body length (the length of a JSON body changes with memory sizes and times, but the header must still be present and correct). For zip downloads it is `<number>`.
 - Bodies: JSON bodies are recorded parsed. HTML and static files are recorded as `sha256` and `length` (small HTML bodies also get a `text` field so they can be read). `/swagger.json` is recorded as `sha256` and `length`. Zip downloads are recorded as the sorted list of entry names with the uncompressed size of each file (`"name 123"`; directories end with `/` and have no size). Compressed size and bytes are not recorded because 7z and the JavaScript fallback compress differently.
 
@@ -93,6 +95,6 @@ From source, the API unpacks zips with `unzip`, else `7z`. A release archive bun
 
 Clients see the text of invalid-JSON errors (steps "task new error: options is not JSON" and "cancel malformed json"). That text comes from the JavaScript engine, so Bun words it differently from Node.js 14. The maintainer accepted Bun's wording for the move to Bun: these two steps were re-recorded with Bun, and the 2.6.1 changelog says so. The response shape and status code did not change.
 
-The `swagger.json` step holds the SHA-256 of `docs/swagger.json` as served. When the version in that file was corrected from 2.5.0 to 2.6.1 (#37), the hash in `golden/default.json` was set to the hash of the new file. The length is the same. The served file does not depend on the runtime, so this is what Node.js 14 would return too.
+The `swagger.json` step holds the SHA-256 of `docs/swagger.json` as served. When the version in that file was corrected from 2.5.0 to 2.6.1 (#37), the hash in `golden/default.json` was set to the hash of the new file. The length is the same. The served file does not depend on the runtime, so this is what Node.js 14 would return too. When `imagesPath` was documented (#47), the hash and the length were set to those of the new file in the same way.
 
 Every other step is still the Node.js 14 recording.

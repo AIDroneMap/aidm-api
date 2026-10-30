@@ -113,6 +113,7 @@ Settings are passed as command-line flags after the image name, or in a JSON fil
 | `--webhook` | URL called when a task completes |
 | `--s3_endpoint`, `--s3_bucket` | Upload finished results to S3-compatible storage |
 | `--test` | Test mode: simulates the engine, for development without it |
+| `--images_root` | Folder under which a task can be created from a folder of photos with `imagesPath`, through links instead of copies. Without it, `imagesPath` is refused |
 
 Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.6.1 --help` for the full list, and see `config-default.json` for the file format. [Configuration](https://aidronemap.dev/api/configuration/) describes every flag.
 

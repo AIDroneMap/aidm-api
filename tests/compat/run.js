@@ -348,11 +348,20 @@ function describeResponse(res, spec) {
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const ISO_DATE_RE = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})/g;
 
-function makeNormaliser(ports) {
+// Writes a path under the app copy as <app>/..., with forward slashes on every platform
+function appPathPattern(appDirs) {
+    const escape = d => d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const dirs = appDirs.filter(Boolean).sort((a, b) => b.length - a.length).map(escape);
+    return dirs.length ? new RegExp('(?:' + dirs.join('|') + ')([\\\\/][^\\s"\']*)?', 'g') : null;
+}
+
+function makeNormaliser(ports, appDirs) {
     const uuids = new Map();
     const literal = new Set([UNKNOWN_UUID, UNKNOWN_UUID_2]);
+    const appPath = appPathPattern(appDirs || []);
 
     function str(s) {
+        if (appPath) s = s.replace(appPath, (m, rest) => '<app>' + (rest || '').replace(/\\/g, '/'));
         s = s.replace(UUID_RE, m => {
             const key = m.toLowerCase();
             if (literal.has(key)) return m;
@@ -651,11 +660,14 @@ function startHookServer() {
 // ---------------------------------------------------------------------------
 // Scenario context
 
-function makeContext(env, port) {
+function makeContext(env, port, appDir) {
     const entries = [];
-    const normalise = makeNormaliser([port, env.zipPort, env.hook.port]);
+    let realAppDir = null;
+    try { realAppDir = fs.realpathSync(appDir); } catch (e) { /* no copy */ }
+    const normalise = makeNormaliser([port, env.zipPort, env.hook.port], [appDir, realAppDir]);
     const ctx = {
         port,
+        appDir,
         entries,
         token: '',
         hook: env.hook,
@@ -1110,6 +1122,63 @@ scenarios.push({
     }
 });
 
+// A task from a folder under the images root. The root is relative to the
+// server's working folder, the app copy, so the folder, the staging folder and
+// the task folder sit on one volume and a hard link works on every platform.
+scenarios.push({
+    name: 'images-path',
+    // No step depends on unzip or 7z, so the golden file can be recorded anywhere
+    noZip: true,
+    flags: () => ['--images_root', path.join('tests', 'images-root')],
+    run: async function (c) {
+        const root = path.join(c.appDir, 'tests', 'images-root');
+        const flight = path.join(root, 'flight');
+        const write = (file, data) => {
+            fs.mkdirSync(path.dirname(file), { recursive: true });
+            fs.writeFileSync(file, data);
+        };
+        ['F_0001.JPG', 'f_0002.jpeg', 'F_0003.TIF'].forEach((name, i) => write(path.join(flight, name), seededBytes(name, 300 + i)));
+        write(path.join(flight, 'notes.txt'), 'not an image\n');
+        write(path.join(flight, 'sub', 'F_0004.JPG'), seededBytes('F_0004.JPG', 303));
+        write(path.join(root, 'empty', 'readme.txt'), 'no images here\n');
+        write(path.join(c.appDir, 'tests', 'images-root2', 'F_0005.JPG'), seededBytes('F_0005.JPG', 304));
+
+        // Names and sizes, sorted, so the listing is the same on every platform
+        const listing = dir => fs.readdirSync(dir).sort().map(name => {
+            const st = fs.statSync(path.join(dir, name));
+            return st.isDirectory() ? name + '/' : name + ' ' + st.size;
+        });
+        const source = listing(flight);
+
+        await c.get('info with the capability', '/info');
+
+        const init = await c.post('chunked: init with imagesPath', '/task/new/init', { fields: { name: 'from a folder', imagesPath: flight } });
+        const ck = init.json && init.json.uuid;
+        await c.post('chunked: upload a GCP file next to the folder', '/task/new/upload/' + ck, {
+            files: [{ field: 'images', name: 'gcp_list.txt', data: Buffer.from('EPSG:4326\n1 2 3 4 5 F_0001.JPG\n') }]
+        });
+        const commit = await c.post('chunked: commit', '/task/new/commit/' + ck);
+        await c.waitFinal(commit.json && commit.json.uuid);
+        await c.get('chunked: info', taskPath(ck, '/info'));
+        c.record('images folder of the chunked task', { note: 'entries of data/<uuid>/images' },
+            { entries: listing(path.join(c.appDir, 'tests', 'data', ck, 'images')) });
+
+        const one = await c.newTask('task new with imagesPath', '/task/new', { fields: { name: 'from a folder, one request', imagesPath: flight } });
+        await c.waitFinal(one);
+        await c.get('info of task new with imagesPath', taskPath(one, '/info'));
+
+        await c.post('task new error: imagesPath outside the root', '/task/new', { fields: { imagesPath: path.join(c.appDir, 'tests', 'images-root2') } });
+        await c.post('task new error: imagesPath does not exist', '/task/new', { fields: { imagesPath: path.join(root, 'missing') } });
+        await c.post('task new error: imagesPath without supported files', '/task/new', { fields: { imagesPath: path.join(root, 'empty') } });
+        await c.post('chunked: init error: imagesPath with zipurl', '/task/new/init', { fields: { imagesPath: flight, zipurl: c.zipUrl('/images.zip') } });
+
+        await c.post('remove the chunked task', '/task/remove', { json: { uuid: ck } });
+        await c.post('remove the one-request task', '/task/remove', { json: { uuid: one } });
+        c.record('source folder after the tasks are removed', { note: 'entries of the images path' }, { unchanged: JSON.stringify(listing(flight)) === JSON.stringify(source), entries: listing(flight) });
+        await c.get('task list after remove', '/task/list');
+    }
+});
+
 // ---------------------------------------------------------------------------
 // Running
 
@@ -1194,7 +1263,7 @@ async function runScenario(sc, opts, env) {
         const port = await freePort();
         server = startServer(opts.command, copyDir, port, sc.flags(env), !!sc.noTools);
         await waitReady(server, port);
-        const ctx = makeContext(env, port);
+        const ctx = makeContext(env, port, copyDir);
         await sc.run(ctx);
         result.steps = ctx.entries.length;
 
@@ -1255,8 +1324,9 @@ async function main() {
     console.log('Tools: unzip ' + (tools.unzip ? 'found' : 'missing') + ', 7z ' + (tools.sevenZ ? 'found' : 'missing') +
         (bundled ? ' (bundled: ' + bundled + ')' : ''));
     const canUnzip = tools.unzip || tools.sevenZ;
-    // Scenarios that start the server without the tools do not need them on PATH
-    if (opts.update && !(tools.unzip && tools.sevenZ) && list.some(s => !s.noTools)) {
+    // Scenarios that start the server without the tools, or record no step
+    // that depends on them, do not need them on PATH
+    if (opts.update && !(tools.unzip && tools.sevenZ) && list.some(s => !s.noTools && !s.noZip)) {
         console.error('Golden files must be recorded with both unzip and 7z on PATH.');
         process.exit(2);
     }
