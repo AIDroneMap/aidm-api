@@ -5,8 +5,10 @@ const path = require('path');
 const vm = require('vm');
 const zlib = require('zlib');
 const { EventEmitter } = require('events');
+const { createRequire } = require('module');
 
 const root = path.join(__dirname, '..', '..');
+const taskRequire = createRequire(path.join(root, 'libs', 'Task.js'));
 const source = fs.readFileSync(path.join(root, 'libs', 'Task.js'), 'utf8');
 const statusCodes = require('../../libs/statusCodes');
 const cleanups = [];
@@ -39,7 +41,7 @@ function createTask(overrides = {}) {
     };
     const sandbox = {
         module: { exports: {} },
-        require: dependency => Object.hasOwn(dependencies, dependency) ? dependencies[dependency] : require(dependency),
+        require: dependency => Object.hasOwn(dependencies, dependency) ? dependencies[dependency] : taskRequire(dependency),
         setInterval,
         clearInterval,
         setTimeout

@@ -51,3 +51,24 @@ CI evidence or establish performance claims.
 Run the independent review loop for each pull request. Resolve defects before
 handing over. Only a maintainer merges. These changes make no performance claim
 and do not request a benchmark unless their scope changes to target performance.
+
+## Maintainer-approved integration addendum
+
+On October 30, 2026, the maintainer approved one integration pull request as
+the sole merge candidate. The authorization is recorded in
+https://github.com/AIDroneMap/aidm-api/issues/11#issuecomment-6515315215.
+This addendum replaces the separate merge and per-head full-run requirements
+above. The original approach remains as the record of the component work.
+
+Merge the exact heads of #58, #59, #60, #61, #62, #63, #64 and #65 locally
+into the integration branch. Preserve their ancestry, production changes and
+regression tests. Keep the component pull requests as review records. They
+must not merge separately. The integration pull request closes #11, #10 and
+#48 through #54 when a maintainer merges it.
+
+Run the combined source unit tests and compatibility harness with unchanged
+golden files. Check that unrelated retained dependency resolutions and the
+Bun pin stay unchanged. The merge gate is one full release dry run on the
+exact integration head, plus independent integration review. A later head
+needs a new exact-head run. Link the run in the integration pull request.
+Only a maintainer merges it after both gates pass.
