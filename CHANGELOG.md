@@ -8,6 +8,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Changed
 
+- Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+
 - Pin `systeminformation` to 5.33.18. Callback, `/info` field mapping and credential-free S3 upload sizing tests in `tests/unit/systeminformation.test.js` preserve the CPU and memory contracts (#52).
 
 ### Fixed
