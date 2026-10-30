@@ -8,6 +8,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Changed
 
+- Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+
 - Task IDs use `crypto.randomUUID()` instead of the direct `uuid` dependency (#48). UUIDv4 format, uniqueness and supplied-ID validation are covered by `tests/unit/task-uuid.test.js`.
 
 ### Fixed
