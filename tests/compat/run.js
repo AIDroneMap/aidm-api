@@ -195,18 +195,18 @@ function readZipEntries(buf) {
 // ---------------------------------------------------------------------------
 // HTTP client and request bodies
 
-function httpRequest(port, opts) {
+// The target is a port on 127.0.0.1, or the path of a Unix socket
+function httpRequest(target, opts) {
     return new Promise((resolve, reject) => {
         const headers = Object.assign({}, opts.headers || {});
         if (opts.body) headers['Content-Length'] = opts.body.length;
-        const req = http.request({
-            host: '127.0.0.1',
-            port,
+        const where = typeof target === 'string' ? { socketPath: target } : { host: '127.0.0.1', port: target };
+        const req = http.request(Object.assign(where, {
             method: opts.method,
             path: opts.path,
             headers,
             agent: false
-        }, res => {
+        }), res => {
             const chunks = [];
             res.on('data', c => chunks.push(c));
             res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
@@ -555,7 +555,7 @@ function startServer(command, copyDir, port, flags, noTools) {
         env = envWithoutTools();
     }
     const args = full.slice(1).concat(['--test', '--port', String(port)], flags);
-    const server = { lines: [], exited: false, exitInfo: null, child: null };
+    const server = { lines: [], exited: false, exitInfo: null, exitCode: null, closed: false, child: null };
     const keep = chunk => {
         String(chunk).split(/\r?\n/).forEach(l => { if (l.length) server.lines.push(l); });
         if (server.lines.length > 500) server.lines.splice(0, server.lines.length - 500);
@@ -579,8 +579,11 @@ function startServer(command, copyDir, port, flags, noTools) {
     });
     child.on('exit', (code, signal) => {
         server.exited = true;
+        server.exitCode = code;
         server.exitInfo = 'exited with code ' + code + ' signal ' + signal;
     });
+    // After exit, the output can still be arriving; close means it is all read
+    child.on('close', () => { server.closed = true; });
     return server;
 }
 
@@ -596,17 +599,29 @@ async function stopServer(server) {
     await sleep(process.platform === 'win32' ? 1000 : 300);
 }
 
-async function waitReady(server, port) {
+async function waitReady(server, target) {
     const ok = await waitFor(async () => {
         if (server.exited) throw new Error('Server stopped before it was ready (' + server.exitInfo + ')');
         try {
-            await httpRequest(port, { method: 'GET', path: '/info' });
+            await httpRequest(target, { method: 'GET', path: '/info' });
             return true;
         } catch (e) {
             return false;
         }
     }, SERVER_READY_TIMEOUT, 200);
     if (!ok) throw new Error('Server did not answer on /info within ' + SERVER_READY_TIMEOUT / 1000 + ' s');
+}
+
+// Windows has no task API socket: the start must fail with an error that says so
+const SOCKET_REFUSAL = 'not supported on Windows';
+
+async function checkSocketRefusal(server) {
+    const closed = await waitFor(() => server.closed || (!server.child && server.exited), SERVER_READY_TIMEOUT, 100);
+    if (!closed) throw new Error('Server did not refuse --socket within ' + SERVER_READY_TIMEOUT / 1000 + ' s');
+    if (server.exitCode === 0) throw new Error('Server exited with code 0 after --socket on Windows');
+    if (!server.lines.some(l => l.indexOf(SOCKET_REFUSAL) !== -1)) {
+        throw new Error('Server output does not say "' + SOCKET_REFUSAL + '"');
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -660,7 +675,8 @@ function startHookServer() {
 // ---------------------------------------------------------------------------
 // Scenario context
 
-function makeContext(env, port, appDir) {
+// The target is the port, or the socket path of a socket scenario
+function makeContext(env, port, appDir, target) {
     const entries = [];
     let realAppDir = null;
     try { realAppDir = fs.realpathSync(appDir); } catch (e) { /* no copy */ }
@@ -678,7 +694,7 @@ function makeContext(env, port, appDir) {
 
     ctx.call = async function (name, spec) {
         const req = buildRequest(spec);
-        const res = await httpRequest(port, { method: req.method, path: req.path, headers: req.headers, body: req.body });
+        const res = await httpRequest(target, { method: req.method, path: req.path, headers: req.headers, body: req.body });
         const reqEntry = normalise(req.entry);
         const resEntry = normalise(describeResponse(res, spec));
         entries.push({ step: name, request: reqEntry, response: resEntry });
@@ -700,7 +716,7 @@ function makeContext(env, port, appDir) {
     ctx.quiet = async function (p) {
         const sep = p.indexOf('?') === -1 ? '?' : '&';
         const full = ctx.token ? p + sep + 'token=' + ctx.token : p;
-        const res = await httpRequest(port, { method: 'GET', path: full });
+        const res = await httpRequest(target, { method: 'GET', path: full });
         try { return JSON.parse(res.body.toString('utf8')); } catch (e) { return null; }
     };
 
@@ -933,6 +949,67 @@ scenarios.push({
         await c.post('remove again', '/task/remove', { json: { uuid: a } });
         await c.get('task list after remove', '/task/list');
         await c.get('info at the end', '/info');
+    }
+});
+
+// Every request goes through the task API socket. Each step repeats the step
+// of the same name in `default`, and must answer as it does there.
+scenarios.push({
+    name: 'socket',
+    socket: true,
+    sameStepsAs: 'default',
+    flags: () => [],
+    run: async function (c) {
+        await c.get('static index page', '/');
+        await c.get('swagger.json', '/swagger.json', { hashOnly: true });
+        await c.get('static file not found', '/does-not-exist.html');
+        await c.call('cors preflight', {
+            method: 'OPTIONS',
+            path: '/task/list',
+            headers: { Origin: 'http://example.com', 'Access-Control-Request-Method': 'GET' }
+        });
+        await c.get('info', '/info');
+        await c.get('options', '/options');
+        await c.get('task list (empty)', '/task/list');
+
+        const a = await c.newTask('task new: two images', '/task/new', {
+            fields: { name: 'compat task', options: OPT_RES },
+            files: c.images('a', 2)
+        });
+        await c.waitFinal(a);
+        await c.get('task info', taskPath(a, '/info'));
+        await c.get('task output', taskPath(a, '/output'));
+        await c.get('task list', '/task/list');
+        await c.get('download all.zip', taskPath(a, '/download/all.zip'), { expectModel: true });
+        await c.get('download unknown task', taskPath(UNKNOWN_UUID, '/download/all.zip'));
+
+        const init = await c.post('chunked: init', '/task/new/init', { fields: { name: 'chunked task', options: OPT_RES } });
+        const ck = init.json && init.json.uuid;
+        await c.post('chunked: upload 1', '/task/new/upload/' + ck, { files: c.images('k', 1) });
+        await c.post('chunked: upload 2', '/task/new/upload/' + ck, { files: c.images('k2', 1) });
+        const commit = await c.post('chunked: commit', '/task/new/commit/' + ck);
+        await c.waitFinal(commit.json && commit.json.uuid);
+        await c.get('chunked: info', taskPath(ck, '/info'));
+
+        await c.post('cancel finished task (urlencoded)', '/task/cancel', { urlencoded: { uuid: a } });
+        await c.get('info after cancel', taskPath(a, '/info'));
+        await c.post('restart (json, no options)', '/task/restart', { json: { uuid: a } });
+        await c.waitFinal(a);
+        await c.get('info after restart', taskPath(a, '/info'));
+        await c.post('remove (json)', '/task/remove', { json: { uuid: a } });
+        await c.get('info of removed task', taskPath(a, '/info'));
+        await c.get('info at the end', '/info');
+    }
+});
+
+// The token check on the socket: a request without the token is refused as in `token`
+scenarios.push({
+    name: 'socket-token',
+    socket: true,
+    sameStepsAs: 'token',
+    flags: () => ['--token', 'compat-secret'],
+    run: async function (c) {
+        await c.get('info without token', '/info');
     }
 });
 
@@ -1254,6 +1331,30 @@ function sameToolMessage(scenario, entries) {
     });
 }
 
+// Task UUIDs are numbered in order of appearance, which differs between two
+// scenarios that run a different set of tasks
+function withoutUuidNumbers(entries) {
+    return JSON.parse(JSON.stringify(entries).replace(/<uuid-\d+>/g, '<uuid>'));
+}
+
+// Compares each step with the step of the same name in another golden file
+function compareSameSteps(actual, otherName, skipZip) {
+    const file = path.join(GOLDEN_DIR, otherName + '.json');
+    if (!fs.existsSync(file)) return { problems: ['Golden file is missing: ' + file], skipped: 0 };
+    const other = JSON.parse(fs.readFileSync(file, 'utf8'));
+    updateModelSize(other);
+    const byName = new Map();
+    other.forEach(e => byName.set(e.step, e));
+    const problems = [];
+    const expected = actual.map(a => {
+        if (!byName.has(a.step)) problems.push('Step "' + a.step + '" is not a step of ' + otherName + '.');
+        return byName.get(a.step) || a;
+    });
+    const cmp = compare(withoutUuidNumbers(actual), withoutUuidNumbers(expected), skipZip);
+    cmp.problems = problems.concat(cmp.problems.map(p => p.replace(/^Step \d+/, 'Against ' + otherName + ', step')));
+    return cmp;
+}
+
 async function runScenario(sc, opts, env) {
     const result = { name: sc.name, steps: 0, problems: [], error: null, log: [] };
     const copyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aidm-compat-' + sc.name + '-'));
@@ -1261,13 +1362,28 @@ async function runScenario(sc, opts, env) {
     try {
         copyApp(opts.appDir, copyDir);
         const port = await freePort();
-        server = startServer(opts.command, copyDir, port, sc.flags(env), !!sc.noTools);
-        await waitReady(server, port);
-        const ctx = makeContext(env, port, copyDir);
+        const socketPath = sc.socket ? path.join(copyDir, 'api.sock') : null;
+        if (socketPath && process.platform === 'win32') {
+            server = startServer(opts.command, copyDir, port, ['--socket', socketPath], false);
+            await checkSocketRefusal(server);
+            result.note = 'Windows: the start with --socket failed with the expected error, no request sent';
+            return result;
+        }
+        const flags = sc.flags(env).concat(socketPath ? ['--socket', socketPath] : []);
+        server = startServer(opts.command, copyDir, port, flags, !!sc.noTools);
+        const target = socketPath || port;
+        await waitReady(server, target);
+        const ctx = makeContext(env, port, copyDir, target);
         await sc.run(ctx);
         result.steps = ctx.entries.length;
 
+        if (sc.sameStepsAs) {
+            const same = compareSameSteps(JSON.parse(JSON.stringify(ctx.entries)), sc.sameStepsAs, !env.tools.sevenZ);
+            result.problems = result.problems.concat(same.problems);
+        }
+
         if (opts.update) {
+            if (result.problems.length) return result;
             fs.mkdirSync(GOLDEN_DIR, { recursive: true });
             fs.writeFileSync(path.join(GOLDEN_DIR, sc.name + '.json'), JSON.stringify(ctx.entries, null, 2) + '\n');
         } else {
@@ -1280,7 +1396,7 @@ async function runScenario(sc, opts, env) {
                 const actual = JSON.parse(JSON.stringify(ctx.entries));
                 sameToolMessage(sc.name, actual);
                 const cmp = compare(actual, expected, !env.tools.sevenZ);
-                result.problems = cmp.problems;
+                result.problems = result.problems.concat(cmp.problems);
                 result.skippedSteps = cmp.skipped;
             }
         }
@@ -1372,7 +1488,8 @@ async function main() {
             r.log.forEach(l => console.log('  | ' + l));
             console.log('');
         } else {
-            console.log((opts.update ? 'WROTE ' : 'PASS  ') + sc.name + ' (' + r.steps + ' steps, ' + secs + ' s)');
+            if (r.note) console.log('PASS  ' + sc.name + ' (' + r.note + ', ' + secs + ' s)');
+            else console.log((opts.update ? 'WROTE ' : 'PASS  ') + sc.name + ' (' + r.steps + ' steps, ' + secs + ' s)');
             if (r.skippedSteps) {
                 skipped.push(sc.name + ': ' + r.skippedSteps + ' zip listing step(s) not compared (7z is missing, so the JavaScript fallback built all.zip and lists directories differently)');
             }

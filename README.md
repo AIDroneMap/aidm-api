@@ -106,6 +106,7 @@ Settings are passed as command-line flags after the image name, or in a JSON fil
 | Flag | Purpose |
 | --- | --- |
 | `--port` | Port to listen on (default 3000) |
+| `--socket` | Also listen on this Unix socket path, created with mode 0600. Config key `socket`. Not on Windows |
 | `--token` | Require this token on every request |
 | `--max_images` | Reject tasks with more images than this |
 | `--parallel_queue_processing` | How many tasks run at the same time |

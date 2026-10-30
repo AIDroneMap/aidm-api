@@ -1,0 +1,20 @@
+[
+  {
+    "step": "info without token",
+    "request": {
+      "method": "GET",
+      "path": "/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "error": "Invalid authentication token: token does not match."
+      }
+    }
+  }
+]
