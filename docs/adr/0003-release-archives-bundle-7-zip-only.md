@@ -16,13 +16,13 @@ Each archive bundles 7-Zip 26.05 and nothing else. The official binaries are pin
 
 In an executable the bundled tool comes first, and `PATH` is the fallback. In source mode and in the images, `PATH` is the whole rule.
 
-The harness treats the two corrupt-zip messages as the same, so the golden file stays as it is.
+The extraction error names the tool that ran, so on an archive the corrupt-zip message now says 7-Zip where an installation with `unzip` on the path saw `unzip` before. That is a contract change in the message, called out in the changelog. The harness treats the two texts as the same for that step, so the golden file recorded from source mode stays as it is.
 
 Considered and rejected:
 
 - Bundling Info-ZIP `unzip` too. See its state above.
 - A source build with RAR disabled. It works, but arm64 would need a cross-compiler or a new job.
-- Changing the API's error text. It would change the golden file and the message clients see.
+- Changing the API's error text to one that names no tool. It would change the golden file and the message every client sees, including those in source mode and the images, for the sake of the archives alone.
 - Keeping `unzip` first. The archive would behave differently on each machine.
 
 ## Consequences

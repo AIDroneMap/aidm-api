@@ -118,7 +118,7 @@ A new `scripts/get-7zip.sh <platform> <dest>` downloads, verifies and unpacks; i
 
 Lookup order. In a compiled executable `libs/apps.js` looks for the bundled 7-Zip next to the executable first and uses it for both extraction and `all.zip`. `PATH` lookup (`unzip`, then `7z`) stays as the fallback, and as the whole rule in source mode and in the images, which install both tools and ship no `apps/` folder. An archive that prefers its own tool behaves the same on every machine.
 
-The one golden difference. When a `zipurl` download is not a zip, `unzip` exits 9 and every 7-Zip build exits 2, so the executable with its bundled tool reports "7z exited with code 2" where `tests/compat/golden/zip-input.json` holds "unzip exited with code 9". The harness treats those two strings as the same for that step. The golden file stays unchanged and the message existing clients see does not move.
+The one golden difference, and the contract change it is. The extraction error names the tool that ran: "Could not extract .zip file, unzip exited with code 9" or "Could not extract .zip file, 7z exited with code 2" for the same corrupt download, because `unzip` exits 9 and every 7-Zip build exits 2. Which tool runs already depends on the machine today. From 2.7.0 a release archive always runs its bundled 7-Zip, so an installation of an archive that used `unzip` from `PATH` before sees the 7-Zip text instead. That is a contract change in the message, approved in the grilling (Q23 and Q24) and called out in the changelog: the shape of the error stays, the tool it names follows the tool that ran. Source mode and the images keep `unzip` first, so the golden files recorded from source mode stay as they are; the harness treats the two texts as the same for that step, so the executables pass against them with the bundled tool.
 
 CI. In `executables-test`, each platform runs the harness on the compiled executable with `unzip` and `7z` removed from `PATH`, so the bundled tool is the only one and `zip-input` runs on Windows for the first time; a second run with the `apps/` folder removed keeps `zip-input-no-tools` honest. These replace today's "without 7z" and "Windows without tools" steps. `README.md` lines about installing the tools are rewritten: the archives bundle 7-Zip, the images install both, source mode needs them on `PATH`.
 
@@ -147,16 +147,16 @@ Tag order. The API tags `v2.7.0` as soon as `v0.2.0` exists and every 2.7.0 tick
 | --- | --- | --- |
 | #69 upstream fields removal | The four golden files updated in the same pull request; `tests/unit/systeminformation.test.js` and `version-strings` pass; the harness passes. | `full` (`package.json`) |
 | #25 manifest | Unit tests for the script: sequence rule, size rule from a stored platform manifest, byte-exact output, sign and verify round trip, verify fails on a wrong key. The dry run proves the jobs: three-variant manifest, aidm-ui's verifier accepts it, artifact present. | `full` |
-| #34 socket | A unit test starts the API in test mode with `--socket` in a child process and calls `/info` over the socket; stale socket and wrong-file cases; Windows refusal. One `socket` scenario in the harness whose requests all go through the socket and whose golden file must match the `default` steps for the same routes, skipped on Windows. | `unit` |
+| #34 socket | A unit test starts the API in test mode with `--socket` in a child process and calls `/info` over the socket; stale socket and wrong-file cases; Windows refusal. One `socket` scenario in the harness whose requests all go through the socket and whose golden file must match the `default` steps for the same routes, skipped on Windows. The dry run runs the scenario on the Linux executables and the refusal on the Windows one. | `full` (a new configuration key and flag; `AGENTS.md` keeps configuration out of `unit`) |
 | #47 folder | A unit test starts the API with `--images_root` on a temporary folder of small files, creates a task through the chunked route, checks the images folder holds links, the source files, sizes and modification times are unchanged after the task completes, and the links go with the task. Unit tests for the refusals (no root, outside the root, unreadable, empty, with `zipurl`). One `images-path` scenario with its own golden file: `/info` with the capability and a task from a folder under `tests/`. | `full` |
 | #8 tools | Unit tests for `get-7zip.sh` (checksum mismatch fails) and for the lookup order in `libs/apps.js`; the harness equivalence of the two corrupt-zip messages. The dry run runs the harness on each executable with no `PATH` tools and with no `apps/` folder, Windows included. | `full` |
 | Release ticket | The version test; the harness; the dry run on the final branch as the rehearsal. | `full` |
 
 ## Dry-run budget
 
-Five `full` tickets (#69, #25, #8, #47, the release ticket), five maintainer-started exact-head dry runs at minimum, one per pull request. The builder asks for the dry run when the pull request is open, and links the run in the description, so the reviewer judges its results as `REVIEW.md` requires before the review loop can clear. A second per ticket only if the head moves after the dry run. At most three run in parallel in the repository.
+Six `full` tickets (#69, #25, #34, #8, #47, the release ticket), six maintainer-started exact-head dry runs at minimum, one per pull request. The socket ticket is `full` because it adds a configuration key and a flag, which `AGENTS.md` keeps out of `unit`; the grilling first put it at `unit` and the review raised it. The builder asks for the dry run when the pull request is open, and links the run in the description, so the reviewer judges its results as `REVIEW.md` requires before the review loop can clear. A second per ticket only if the head moves after the dry run. At most three run in parallel in the repository.
 
-Order: #69 first, since it changes the `/info` golden steps every later scenario copies; then #25 and #8 in sequence, since both edit `release.yml`; #47 and #34 whenever ready; the release ticket last.
+Order: #69 first, since it changes the `/info` golden steps every later scenario copies; then #25 and #8 in sequence, since both edit `release.yml`; #34 and #47 whenever ready; the release ticket last.
 
 Before the first dry run the maintainer checks that the `modal-gpu` environment's branch policy covers every builder branch prefix (`feat/`, `fix/`, `docs/`, `chore/`, `ci/`, `test/`).
 
@@ -183,7 +183,7 @@ Before the first dry run the maintainer checks that the `modal-gpu` environment'
 ## What the maintainer does
 
 1. Before the first dry run: check the `modal-gpu` environment's branch policy covers every builder branch prefix.
-2. Start each dry run on the pull request head when the builder asks for it, before the review verdict; five at minimum, in the order above.
+2. Start each dry run on the pull request head when the builder asks for it, before the review verdict; six at minimum, in the order above.
 3. After #34 and #25 are merged, run the `--publish-socket` check on his Mac with the command in decision 2, on a dry-run arm64 image.
 4. After the engine tag `v0.2.0`: merge the release ticket after its rehearsal, push `v2.7.0`, and publish the draft release when the tag run is green.
 5. Re-pin aidronemap.dev to `v2.7.0`.
