@@ -8,6 +8,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Changed
 
+- Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+
 - Replace `mv` with filesystem moves and a cross-device copy fallback for uploads, seed files and GCP files. Copy errors keep the source. Regression tests cover moves, collisions and failures (#50).
 
 ### Fixed
