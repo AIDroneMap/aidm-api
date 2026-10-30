@@ -28,7 +28,7 @@ Examples:
 ```
 bun install --frozen-lockfile --production
 bun run test:compat
-bun tests/compat/run.js --app ./dist/aidm-api-2.6.1-linux-x64 -- ./aidm-api
+bun tests/compat/run.js --app ./dist/aidm-api-2.7.0-linux-x64 -- ./aidm-api
 ```
 
 To check the original runtime, run it with Node.js 14 and `-- node index.js`, after `npm install --production`.
@@ -99,6 +99,6 @@ From source, the API unpacks zips with `unzip`, else `7z`. A release archive bun
 
 Clients see the text of invalid-JSON errors (steps "task new error: options is not JSON" and "cancel malformed json"). That text comes from the JavaScript engine, so Bun words it differently from Node.js 14. The maintainer accepted Bun's wording for the move to Bun: these two steps were re-recorded with Bun, and the 2.6.1 changelog says so. The response shape and status code did not change.
 
-The `swagger.json` step holds the SHA-256 of `docs/swagger.json` as served. When the version in that file was corrected from 2.5.0 to 2.6.1 (#37), the hash in `golden/default.json` was set to the hash of the new file. The length is the same. The served file does not depend on the runtime, so this is what Node.js 14 would return too. When `imagesPath` was documented (#47), the hash and the length were set to those of the new file in the same way.
+The `swagger.json` step holds the SHA-256 of `docs/swagger.json` as served. When the version in that file was corrected from 2.5.0 to 2.6.1 (#37), the hash in `golden/default.json` was set to the hash of the new file. The length is the same. The served file does not depend on the runtime, so this is what Node.js 14 would return too. When `imagesPath` was documented (#47), the hash and the length were set to those of the new file in the same way. When the version moved to 2.7.0 (#76), the hash and the length were set to those of the new file in `golden/default.json` and `golden/socket.json` in the same way.
 
 Every other step is still the Node.js 14 recording.
