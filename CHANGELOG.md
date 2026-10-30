@@ -6,6 +6,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ## Unreleased
 
+- Replace the invalid test-mode GLB placeholder with a self-contained textured model. Scene, geometry and embedded-texture checks are in `tests/unit/model-fixture.test.js`; the compatibility harness checks archived model bytes and skip-output behavior (#67).
+
 - Combined the eight dependency changes into one merge candidate under the approved plan for #11. Component pull requests #58 through #65 remain review records. Evidence is in `docs/specs/0002-dependency-cleanup.md`, `tests/unit/` and `tests/compat/run.js`. One exact-head full release dry run is required before maintainer merge.
 
 ### Changed

@@ -4,6 +4,13 @@ These tests check that the API answers the same way on every runtime (Node.js 14
 
 The harness is plain CommonJS with no dependencies. It runs unchanged on Node.js 14 and on Bun. The golden files were recorded with Node.js 14.21.3, the runtime of AIDM API 2.5.0.
 
+The GLB fixture was corrected in #67. Its expected archive member size follows
+the fixture instead of the old placeholder size in the golden files. The
+harness also extracts that member and checks its bytes against the fixture,
+even when ZIP listings are not compared because `7z` is missing. Default,
+token and skip-assets tasks must include it. Skip-assets exclusions are checked
+with either archive implementation. All other golden expectations stay fixed.
+
 ## Run
 
 ```
