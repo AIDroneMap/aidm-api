@@ -22,7 +22,6 @@ const path = require('path');
 const TaskManager = require('./TaskManager');
 const crypto = require('crypto');
 const config = require('../config.js');
-const rmdir = require('rimraf');
 const Directories = require('./Directories');
 const movePath = require('./move');
 const Task = require('./Task');
@@ -44,7 +43,8 @@ const download = function(uri, filename, callback) {
 
 const removeDirectory = function(dir, cb = () => {}){
     fs.stat(dir, (err, stats) => {
-        if (!err && stats.isDirectory()) rmdir(dir, cb); // ignore errors, don't wait
+        if (err && err.code === 'ENOENT') cb();
+        else if (!err && stats.isDirectory()) fs.rm(dir, { recursive: true, force: true }, cb);
         else cb(err);
     });
 };

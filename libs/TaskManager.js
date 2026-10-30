@@ -18,7 +18,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 "use strict";
 const assert = require('assert');
 const config = require('../config');
-const rmdir = require('rimraf');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
@@ -120,7 +119,7 @@ class TaskManager{
                         entry.match(/^[\w\d]+\-[\w\d]+\-[\w\d]+\-[\w\d]+\-[\w\d]+$/) &&
                         !this.tasks[entry]){
                         logger.info(`Found orphaned directory: ${entry}, removing...`);
-                        rmdir(dirPath, cb);
+                        fs.rm(dirPath, { recursive: true, force: true }, cb);
                     }else cb();
                 }, done);
             }
@@ -140,7 +139,7 @@ class TaskManager{
                             else{
                                 if (stats.isDirectory() && stats.ctime.getTime() + CLEANUP_STALE_UPLOADS_AFTER < now.getTime()){
                                     logger.info(`Found stale upload directory: ${entry}, removing...`);
-                                    rmdir(dirPath, cb);
+                                    fs.rm(dirPath, { recursive: true, force: true }, cb);
                                 }else cb();
                             }
                         });

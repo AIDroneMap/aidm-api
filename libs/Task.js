@@ -24,7 +24,6 @@ const assert = require('assert');
 const logger = require('./logger');
 const fs = require('fs');
 const path = require('path');
-const rmdir = require('rimraf');
 const odmRunner = require('./odmRunner');
 const odmInfo = require('./odmInfo');
 const processRunner = require('./processRunner');
@@ -207,9 +206,9 @@ module.exports = class Task{
 
     // Deletes files and folders related to this task
     cleanup(cb){
-        if (this.initialized) rmdir(this.getProjectFolderPath(), cb);
+        if (this.initialized) fs.rm(this.getProjectFolderPath(), { recursive: true, force: true }, cb);
         else this.onInitialize.push(() => {
-            rmdir(this.getProjectFolderPath(), cb);
+            fs.rm(this.getProjectFolderPath(), { recursive: true, force: true }, cb);
         });
     }
 
