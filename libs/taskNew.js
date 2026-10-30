@@ -28,19 +28,10 @@ const mv = require('mv');
 const Task = require('./Task');
 const async = require('async');
 const odmInfo = require('./odmInfo');
-const request = require('request');
+const { download } = require('./httpClient');
 const ziputils = require('./ziputils');
 const statusCodes = require('./statusCodes');
 const logger = require('./logger');
-
-const download = function(uri, filename, callback) {
-    request.head(uri, function(err, res, body) {
-        if (err) callback(err);
-        else{
-            request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
-        }
-    });
-};
 
 const removeDirectory = function(dir, cb = () => {}){
     fs.stat(dir, (err, stats) => {
