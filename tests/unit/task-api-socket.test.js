@@ -148,6 +148,25 @@ for (const [kind, make] of [
     });
 }
 
+test('a stop leaves alone a socket that another listener has put at the path', async () => {
+    const { listen } = require('../../libs/taskApiSocket');
+    const ws = workspace();
+    const open = name => new Promise((resolve, reject) => {
+        listen((req, res) => res.end(name), ws.socket, (err, s) => err ? reject(err) : resolve(s));
+    });
+
+    const first = await open('first');
+    const second = await open('second');
+    const replacement = fs.lstatSync(ws.socket).ino;
+
+    first.close();
+    expect(fs.lstatSync(ws.socket).ino).toBe(replacement);
+    expect(await (await fetch('http://localhost/', { unix: ws.socket })).text()).toBe('second');
+
+    second.close();
+    expect(fs.existsSync(ws.socket)).toBe(false);
+});
+
 test('refuses the socket option on Windows', () => {
     const { checkOption } = require('../../libs/taskApiSocket');
     const err = checkOption('/run/task-api.sock', 'win32');

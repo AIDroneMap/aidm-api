@@ -56,7 +56,7 @@ function removeStale(socketPath, cb){
 }
 
 // Listens on the path and calls back with {server, close}. close() stops the
-// server and removes the socket file, unless another process has replaced it.
+// server and removes the socket file, unless another listener has replaced it.
 function listen(app, socketPath, cb){
     removeStale(socketPath, err => {
         if (err) return cb(err);
@@ -85,12 +85,24 @@ function listen(app, socketPath, cb){
             cb(null, {
                 server,
                 close: () => {
-                    server.close();
+                    let ours = false;
                     try{
                         const st = fs.lstatSync(socketPath);
-                        if (st.isSocket() && st.ino === ino) fs.unlinkSync(socketPath);
+                        ours = st.isSocket() && st.ino === ino;
                     }catch(e){
                         // Already gone
+                    }
+
+                    // Closing the server unlinks the path, whatever it names
+                    // by then. When the path no longer names this socket, the
+                    // server stays open but cannot be reached, and stops
+                    // holding the process; the callers exit right after.
+                    if (!ours) return server.unref();
+                    server.close();
+                    try{
+                        fs.unlinkSync(socketPath);
+                    }catch(e){
+                        // The close removed it already
                     }
                 }
             });
