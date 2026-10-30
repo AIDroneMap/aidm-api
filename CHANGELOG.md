@@ -8,6 +8,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Changed
 
+- Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+
 - Pinned `archiver` to 8.0.0 and switched the ZIP fallback to its `ZipArchive` constructor. Regression tests check complete archive contents, output-close ordering and error callbacks in `tests/unit/archive-fallback.test.js` (#53).
 
 ### Fixed
