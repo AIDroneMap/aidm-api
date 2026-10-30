@@ -17,6 +17,7 @@ const http = require('http');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const { spawn, spawnSync } = require('child_process');
+const { modelPath, checkModelEntry, updateModelSize } = require('./model-fixture');
 
 const GOLDEN_DIR = path.join(__dirname, 'golden');
 const SERVER_READY_TIMEOUT = 30000;
@@ -184,6 +185,7 @@ function readZipEntries(buf) {
         const extraLen = buf.readUInt16LE(pos + 30);
         const commentLen = buf.readUInt16LE(pos + 32);
         const name = buf.toString('utf8', pos + 46, pos + 46 + nameLen);
+        if (name === modelPath) checkModelEntry(buf, pos);
         entries.push({ name, size });
         pos += 46 + nameLen + extraLen + commentLen;
     }
@@ -285,6 +287,9 @@ function describeResponse(res, spec) {
     const out = { status: res.status, headers: {}, body: null };
     const isJson = ct.indexOf('application/json') === 0 && !spec.hashOnly;
     const isZip = ct.indexOf('application/zip') === 0;
+    if (spec.expectModel && (res.status !== 200 || !isZip || res.body.length === 0)) {
+        throw new Error('Expected a successful task archive download');
+    }
     let body = null;
 
     if (res.body.length === 0) {
@@ -304,6 +309,14 @@ function describeResponse(res, spec) {
         }
     } else if (isZip) {
         const entries = readZipEntries(res.body);
+        if (spec.expectModel && (!entries || !entries.some(entry => entry.name === modelPath))) {
+            throw new Error('Task archive is missing the GLB model');
+        }
+        for (const name of spec.absentAssets || []) {
+            if (entries && entries.some(entry => entry.name === name || entry.name.startsWith(name + '/'))) {
+                throw new Error('Task archive includes skipped asset ' + name);
+            }
+        }
         if (entries) {
             body = {
                 zip: {
@@ -757,7 +770,7 @@ scenarios.push({
         await c.get('task list', '/task/list');
 
         // Downloads
-        await c.get('download all.zip', taskPath(a, '/download/all.zip'));
+        await c.get('download all.zip', taskPath(a, '/download/all.zip'), { expectModel: true });
         await c.get('download invalid asset: orthophoto.tif', taskPath(a, '/download/orthophoto.tif'));
         await c.get('download invalid asset: ALL.ZIP', taskPath(a, '/download/ALL.ZIP'));
         await c.get('download unknown task', taskPath(UNKNOWN_UUID, '/download/all.zip'));
@@ -999,7 +1012,7 @@ scenarios.push({
         await c.get('task info without token', taskPath(t, '/info'));
         await c.get('task info with token', taskPath(t, '/info?token=compat-secret'));
         await c.get('download without token', taskPath(t, '/download/all.zip'));
-        await c.get('download with token', taskPath(t, '/download/all.zip?token=compat-secret'));
+        await c.get('download with token', taskPath(t, '/download/all.zip?token=compat-secret'), { expectModel: true });
         await c.get('task list with token', '/task/list?token=compat-secret');
         await c.post('cancel with token', '/task/cancel?token=compat-secret', { urlencoded: { uuid: t } });
         await c.post('remove with token', '/task/remove?token=compat-secret', { json: { uuid: t } });
@@ -1052,7 +1065,11 @@ scenarios.push({
         await c.waitFinal(t);
         await c.get('info', taskPath(t, '/info'));
         await c.get('output', taskPath(t, '/output'));
-        await c.get('download all.zip', taskPath(t, '/download/all.zip'));
+        await c.get('download all.zip', taskPath(t, '/download/all.zip'), {
+            expectModel: true,
+            absentAssets: ['odm_orthophoto/odm_orthophoto.tif', 'odm_orthophoto/odm_orthophoto.mbtiles',
+                'orthophoto_tiles', 'odm_dem/dsm.tif', 'odm_dem/dtm.tif', 'dsm_tiles', 'dtm_tiles']
+        });
         await c.get('download orthophoto.tif (not a valid asset name)', taskPath(t, '/download/orthophoto.tif'));
     }
 });
@@ -1171,6 +1188,7 @@ async function runScenario(sc, opts, env) {
                 result.problems.push('Golden file is missing: ' + file + ' (run with --update to create it)');
             } else {
                 const expected = JSON.parse(fs.readFileSync(file, 'utf8'));
+                updateModelSize(expected);
                 const cmp = compare(JSON.parse(JSON.stringify(ctx.entries)), expected, !env.tools.sevenZ);
                 result.problems = cmp.problems;
                 result.skippedSteps = cmp.skipped;
