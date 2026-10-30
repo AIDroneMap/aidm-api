@@ -12,6 +12,11 @@
 # scripts/get-bun.sh. Leave it out only when the target is the machine you
 # are building on.
 #
+# The archive bundles 7-Zip for the target platform in apps/7z/. The script
+# downloads it with scripts/get-7zip.sh, which checks it against
+# scripts/7zip-sha256sums.txt. The Windows package is opened with the Linux
+# x64 7-Zip, so a Windows archive is built on Linux x64.
+#
 # The archive is named aidm-api-<version>-<platform>.tar.gz (Linux) or
 # aidm-api-<version>-<platform>.zip (Windows). File order, owners and times
 # are fixed, so the same source gives the same archive. Times come from
@@ -50,9 +55,9 @@ platform="${positional[0]}"
 outdir="${positional[1]}"
 
 case "$platform" in
-    linux-x64)   target="bun-linux-x64";   exe="aidm-api";     kind="tar" ;;
-    linux-arm64) target="bun-linux-arm64"; exe="aidm-api";     kind="tar" ;;
-    windows-x64) target="bun-windows-x64"; exe="aidm-api.exe"; kind="zip" ;;
+    linux-x64)   target="bun-linux-x64";   exe="aidm-api";     kind="tar"; sevenzip="7zzs" ;;
+    linux-arm64) target="bun-linux-arm64"; exe="aidm-api";     kind="tar"; sevenzip="7zzs" ;;
+    windows-x64) target="bun-windows-x64"; exe="aidm-api.exe"; kind="zip"; sevenzip="7za.exe" ;;
     *)
         echo "Error: unknown platform '$platform'." >&2
         usage
@@ -116,18 +121,24 @@ copy_tracked config-default.json public helpers scripts/postprocess.sh \
 # The API writes here, relative to the working directory.
 mkdir "$stage/tmp" "$stage/data"
 
-# 3. Licence notices for Bun and the npm packages inside the executable.
-bun scripts/third-party-notices.js "$stage/THIRD-PARTY-NOTICES.txt"
+# 3. 7-Zip, which the executable uses before any zip tool on the PATH
+# (libs/apps.js).
+scripts/get-7zip.sh "$platform" "$work/7zip" > /dev/null
+mkdir -p "$stage/apps/7z"
+cp "$work/7zip/$sevenzip" "$stage/apps/7z/$sevenzip"
 
-# 4. Fixed permissions, so the archive does not depend on the umask.
+# 4. Licence notices for Bun, the npm packages inside the executable and 7-Zip.
+bun scripts/third-party-notices.js --7zip "$work/7zip" "$stage/THIRD-PARTY-NOTICES.txt"
+
+# 5. Fixed permissions, so the archive does not depend on the umask.
 find "$stage" -type d -exec chmod 755 {} +
 find "$stage" -type f -exec chmod 644 {} +
-chmod 755 "$stage/$exe" "$stage/scripts/postprocess.sh"
+chmod 755 "$stage/$exe" "$stage/scripts/postprocess.sh" "$stage/apps/7z/$sevenzip"
 if [ -d "$stage/helpers" ]; then
     find "$stage/helpers" -type f -perm -u+x -exec chmod 755 {} +
 fi
 
-# 5. The archive.
+# 6. The archive.
 if [ "$kind" = "tar" ]; then
     archive="$outdir/$name.tar.gz"
     tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$epoch" \

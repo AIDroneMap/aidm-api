@@ -16,19 +16,25 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 const fs = require('fs');
+const path = require('path');
 const appRoot = require('./appRoot');
 
-let sevenZ = "7z";
-let unzip = "unzip";
-
-if (fs.existsSync(appRoot.resolve("apps", "7z", "7z.exe"))){
-    sevenZ = appRoot.resolve("apps", "7z", "7z.exe");
+// Picks the programs that extract zip files and build all.zip.
+//
+// A release archive bundles one 7-Zip under apps/7z/ (scripts/package.sh):
+// the static 7zzs on Linux, 7za.exe on Windows. A compiled executable uses it
+// first, for both jobs, so an archive behaves the same on every machine.
+// Without it, and always in source mode and in the images, the programs come
+// from the PATH: libs/ziputils.js tries unzip, then 7z.
+function lookup({ compiled, root, platform, exists = fs.existsSync }){
+    if (compiled){
+        const bundled = path.join(root, "apps", "7z", platform === "win32" ? "7za.exe" : "7zzs");
+        if (exists(bundled)) return { sevenZ: bundled, unzip: "unzip", bundledSevenZ: true };
+    }
+    return { sevenZ: "7z", unzip: "unzip", bundledSevenZ: false };
 }
 
-if (fs.existsSync(appRoot.resolve("apps", "unzip", "unzip.exe"))){
-    unzip = appRoot.resolve("apps", "unzip", "unzip.exe");
-}
-
-module.exports = {
-    sevenZ, unzip
-};
+module.exports = Object.assign(
+    lookup({ compiled: appRoot.compiled, root: appRoot.root, platform: process.platform }),
+    { lookup }
+);

@@ -150,6 +150,8 @@ config.maxRuntime = parseInt(argv.max_runtime || fromConfigFile("maxRuntime", -1
 // Detect 7z availability
 config.has7z = spawnSync(apps.sevenZ, ['--help']).status === 0;
 config.hasUnzip = spawnSync(apps.unzip, ['--help']).status === 0;
+// A release archive extracts with the 7-Zip it bundles before unzip (libs/apps.js)
+config.sevenZFirst = apps.bundledSevenZ && config.has7z;
 
 
 module.exports = config;

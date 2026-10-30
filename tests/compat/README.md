@@ -81,12 +81,13 @@ Nothing else is normalised. Task output lines come from fixed sample files and d
 
 ## Tools and skipped checks
 
-The API unpacks zips with `unzip`, else `7z`. When neither is installed, a task with a zip file (an upload or `zipurl`) fails with the error "Could not extract .zip file, neither unzip nor 7z is installed", and the server keeps running. So:
+From source, the API unpacks zips with `unzip`, else `7z`. A release archive bundles 7-Zip in `apps/7z/` (`7zzs` on Linux, `7za.exe` on Windows), and the compiled executable uses it first. When no tool is found, a task with a zip file (an upload or `zipurl`) fails with the error "Could not extract .zip file, neither unzip nor 7z is installed", and the server keeps running. So:
 
-- The `zip-input-no-tools` scenario always runs. It starts the server with a `PATH` that has neither program: one empty folder on Linux and macOS, only the Windows system folders on Windows. An empty string does not work, because Bun then searches a default path that includes `/usr/bin`. The harness looks up the server command on the real `PATH` first. On Windows it also deletes `apps/7z/7z.exe` and `apps/unzip/unzip.exe` from the temporary copy. The scenario checks that both tasks end with status 30 and that `/info` still answers.
-- The `zip-input` scenario is skipped, with a printed reason, when both `unzip` and `7z` are missing on the harness's own `PATH`. Its golden file holds the messages of the tools themselves, for example "unzip exited with code 9" for the 404 case, so it cannot pass without them.
+- The `zip-input-no-tools` scenario starts the server with a `PATH` that has neither program: one empty folder on Linux and macOS, only the Windows system folders on Windows. An empty string does not work, because Bun then searches a default path that includes `/usr/bin`. The harness looks up the server command on the real `PATH` first. The scenario checks that both tasks end with status 30 and that `/info` still answers. It is skipped, with a printed reason, when the app folder holds the bundled 7-Zip, because that app always has a tool. To check it on a release archive, run the harness on a copy without `apps/`.
+- The `zip-input` scenario is skipped, with a printed reason, when both `unzip` and `7z` are missing on the harness's own `PATH` and the app bundles no 7-Zip. Its golden file holds the messages of the tools themselves, for example "unzip exited with code 9" for the 404 case, so it cannot pass without them.
+- The golden file of `zip-input` holds the `unzip` message of the 404 case, "Could not extract .zip file, unzip exited with code 9". 7-Zip reports the same failure as "Could not extract .zip file, 7z exited with code 2". The harness treats these two texts as equal in that one step, so a compiled executable that runs its bundled 7-Zip passes against the golden file. No other text and no other step is treated this way.
 - When `7z` is missing the API builds `all.zip` with the JavaScript fallback, which does not list top-level directory entries. The steps that return a zip listing are then not compared, and the summary line says so.
-- The golden files were recorded with both tools. With only `7z` the message of the 404 case differs.
+- The golden files were recorded from source with both tools, so `unzip` ran.
 
 ## Runtime differences it caught
 

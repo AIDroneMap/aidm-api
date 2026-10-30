@@ -921,7 +921,7 @@ if (config.test) {
     if (config.testDropUploads) logger.info("Uploads will drop at random");
 }
 
-if (!config.hasUnzip) logger.warn("The unzip program is not installed, (certain unzip operations might be slower)");
+if (!config.hasUnzip && !config.sevenZFirst) logger.warn("The unzip program is not installed, (certain unzip operations might be slower)");
 if (!config.has7z) logger.warn("The 7z program is not installed, falling back to legacy (zipping will be slower)");
 if (!config.hasUnzip && !config.has7z) logger.warn("Neither unzip nor 7z is installed, tasks with zip files (zip uploads and zipurl) will fail until one of them is installed");
 

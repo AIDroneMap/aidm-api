@@ -3,7 +3,7 @@ const config = require('../config');
 
 module.exports = {
     unzip: function(file, outputDir, cb, noDirectories = false){
-        if (config.hasUnzip){
+        if (config.hasUnzip && !config.sevenZFirst){
             processRunner.unzip({
                 file: file,
                 destination: outputDir,
