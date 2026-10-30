@@ -8,6 +8,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ### Changed
 
+- Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+
 - Pinned `node-schedule` to 2.1.2. Task cleanup still runs hourly, and runtime checks still run every minute when enabled. `tests/unit/task-schedules.test.js` checks the callbacks, schedules and cancellation (#54).
 
 ### Fixed
