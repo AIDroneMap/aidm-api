@@ -20,7 +20,7 @@ const storage = require('./storage');
 const fs = require('fs');
 const path = require('path');
 const TaskManager = require('./TaskManager');
-const uuidv4 = require('uuid/v4');
+const crypto = require('crypto');
 const config = require('../config.js');
 const rmdir = require('rimraf');
 const Directories = require('./Directories');
@@ -64,7 +64,7 @@ module.exports = {
                 res.json({error: `Invalid set-uuid: ${userUuid}`})
             }
         }else{
-            req.id = uuidv4();
+            req.id = crypto.randomUUID();
             next();
         }
     },
