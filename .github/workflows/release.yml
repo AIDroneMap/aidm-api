@@ -2,9 +2,22 @@
 #
 # A v* tag push publishes ghcr.io/aidronemap/aidm-api:<version>, :latest,
 # :<version>-gpu and :gpu, then opens a draft GitHub release with the
-# executable archives for linux-x64, linux-arm64 and windows-x64 attached. The images build
-# on the published AIDM engine images named by FROM_REPO in Dockerfile and
-# Dockerfile.gpu, so the aidm release must be published first.
+# executable archives for linux-x64, linux-arm64 and windows-x64, SHA256SUMS,
+# and the signed release manifest (manifest.json and manifest.json.sig)
+# attached. The images build on the published AIDM engine images named by
+# FROM_REPO in Dockerfile and Dockerfile.gpu, so the aidm release must be
+# published first.
+#
+# The release manifest is the file aidm-ui installs from. Every run builds it
+# with scripts/release-manifest.js from the three image digests (cpu-amd64,
+# cpu-arm64, gpu-amd64) and the sizes the registry reports. Only a tag push
+# signs it: the sign-manifest job runs in the release environment, which
+# admits only v* tags and holds the secret MANIFEST_SIGNING_KEY, and it checks
+# the signature against .github/manifest-public-key.txt before anything is
+# uploaded, so a wrong key fails the run. No other job names that environment.
+# A dry run signs with a key made in the run instead, checks the manifest with
+# aidm-ui's own verifier at a pinned commit, and uploads the manifest, its
+# signature and that key's public half as the manifest-dry-run artifact.
 #
 # Run it by hand to test the build without publishing anything:
 #   gh workflow run release.yml -f publish=false
@@ -16,7 +29,7 @@
 # Every run, dry run or tag, also tests the GPU image on a real NVIDIA GPU
 # (the gpu-test job), like the engine's release workflow. The GitHub runners
 # have no GPU, so the build job only checks that the GPU image starts. The
-# build job pushes the GPU image by digest (to ghcr.io/aidronemap/aidm-api-ci
+# build job pushes all three images by digest (to ghcr.io/aidronemap/aidm-api-ci
 # on dry runs, untagged), and gpu-test runs scripts/gpu-smoke-modal-api.py,
 # which starts that exact digest on a T4 on Modal, runs a task through the
 # API and checks that the engine used the GPU. Nothing is tagged unless
@@ -59,7 +72,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/aidronemap/aidm-api
-  # Untagged GPU images from dry runs, so that gpu-test can pull them
+  # Untagged images from dry runs, for gpu-test and the dry-run manifest
   CI_IMAGE: ghcr.io/aidronemap/aidm-api-ci
 
 jobs:
@@ -72,6 +85,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       publish: ${{ steps.version.outputs.publish }}
       engine-ref: ${{ steps.base.outputs.engine-ref }}
+      engine-version: ${{ steps.base.outputs.engine-version }}
       cpu-base: ${{ steps.base.outputs.cpu-base }}
       gpu-base: ${{ steps.base.outputs.gpu-base }}
     steps:
@@ -119,7 +133,8 @@ jobs:
         run: |
           cpu=$(sed -n 's/^ARG FROM_REPO=//p' Dockerfile)
           gpu=$(sed -n 's/^ARG FROM_REPO=//p' Dockerfile.gpu)
-          engine_ref="v${cpu##*:}"
+          engine_version="${cpu##*:}"
+          engine_ref="v$engine_version"
 
           # WebODM's ODX images, pinned. Only for dry runs.
           if [ "$BASE_INPUT" = "upstream" ]; then
@@ -149,9 +164,12 @@ jobs:
             fi
           done
 
-          # The smoke test script comes from the aidm release the base image belongs to
+          # The smoke test script comes from the aidm release the base image belongs to.
+          # The release manifest names the engine version from the Dockerfile,
+          # also when an upstream dry run builds on other images.
           {
             echo "engine-ref=$engine_ref"
+            echo "engine-version=$engine_version"
             echo "cpu-base=$cpu"
             echo "gpu-base=$gpu"
           } >> "$GITHUB_OUTPUT"
@@ -452,9 +470,9 @@ jobs:
         env:
           NAME: ${{ matrix.name }}
 
-      # The GPU image is pushed on every run, for gpu-test
+      # Every image is pushed on every run: the GPU image for gpu-test, all
+      # three for the release manifest, which reads their digests and sizes
       - name: Log in to ghcr.io
-        if: needs.check.outputs.publish == 'true' || matrix.name == 'gpu-amd64'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
@@ -465,7 +483,6 @@ jobs:
       # Dry runs push to CI_IMAGE, by digest only, so nothing is published.
       - name: Push by digest
         id: push
-        if: needs.check.outputs.publish == 'true' || matrix.name == 'gpu-amd64'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -477,7 +494,6 @@ jobs:
 
       - name: Check that the pushed image is the tested one
         id: check-push
-        if: needs.check.outputs.publish == 'true' || matrix.name == 'gpu-amd64'
         env:
           TESTED: ${{ steps.build.outputs.imageid }}
           PUSHED: ${{ steps.push.outputs.imageid }}
@@ -494,7 +510,6 @@ jobs:
           fi
 
       - name: Upload digest
-        if: needs.check.outputs.publish == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: digest-${{ matrix.name }}
@@ -559,7 +574,7 @@ jobs:
           GPU_IMAGE: ${{ needs.build.outputs.gpu-image }}
         run: '"$RUNNER_TEMP/modal/bin/python" scripts/gpu-smoke-modal-api.py "$RUNNER_TEMP/aidm-scripts" "$GPU_IMAGE"'
 
-  manifest:
+  tag-images:
     name: Tag images
     needs: [check, build, gpu-test]
     if: needs.check.outputs.publish == 'true'
@@ -608,9 +623,228 @@ jobs:
           echo "cpu-digest=$cpu" >> "$GITHUB_OUTPUT"
           echo "gpu-digest=$gpu" >> "$GITHUB_OUTPUT"
 
+  # Builds the release manifest in every run. In a publish run it waits for
+  # tag-images, so the digests it names are the ones the tags point at. In a
+  # dry run tag-images is skipped, and a job that needs a skipped job is
+  # skipped too unless its condition says otherwise; this one runs then, but
+  # never after a failure or a cancel.
+  manifest:
+    name: Build release manifest
+    needs: [check, build, gpu-test, tag-images]
+    if: >-
+      !cancelled()
+      && needs.build.result == 'success'
+      && needs.gpu-test.result == 'success'
+      && (needs.tag-images.result == 'success'
+        || (needs.tag-images.result == 'skipped' && needs.check.outputs.publish != 'true'))
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # From the Bun release on GitHub, checked against scripts/bun-sha256sums.txt
+      - name: Download Bun
+        run: |
+          scripts/get-bun.sh linux-x64 "$RUNNER_TEMP/bun"
+          echo "$RUNNER_TEMP/bun" >> "$GITHUB_PATH"
+
+      - name: Download digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+
+      # Read only: the script reads each image manifest for its size
+      - name: Log in to ghcr.io
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build manifest.json
+        env:
+          PUBLISH: ${{ needs.check.outputs.publish }}
+          VERSION: ${{ needs.check.outputs.version }}
+          ENGINE_VERSION: ${{ needs.check.outputs.engine-version }}
+        run: |
+          image="$CI_IMAGE"
+          if [ "$PUBLISH" = "true" ]; then image="$IMAGE"; fi
+          mkdir -p manifest
+          bun scripts/release-manifest.js build \
+            --version "$VERSION" --engine-version "$ENGINE_VERSION" \
+            --image "$image" --digests digests --out manifest/manifest.json
+          cat manifest/manifest.json
+
+      - name: Upload manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: manifest
+          path: manifest/manifest.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # Signs the manifest with the signing key. Tag pushes only: the release
+  # environment admits only v* tags, so a branch run of this job would fail.
+  # No other job names that environment.
+  sign-manifest:
+    name: Sign release manifest
+    needs: manifest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # From the Bun release on GitHub, checked against scripts/bun-sha256sums.txt
+      - name: Download Bun
+        run: |
+          scripts/get-bun.sh linux-x64 "$RUNNER_TEMP/bun"
+          echo "$RUNNER_TEMP/bun" >> "$GITHUB_PATH"
+
+      - name: Download manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: manifest
+          path: manifest
+
+      # The key goes from the environment to the script's standard input. It
+      # is never printed, written to a file or put on a command line.
+      - name: Sign manifest.json
+        env:
+          MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
+        run: |
+          if [ -z "$MANIFEST_SIGNING_KEY" ]; then
+            echo "::error::MANIFEST_SIGNING_KEY is empty. It must be set in the release environment."
+            exit 1
+          fi
+          printenv MANIFEST_SIGNING_KEY \
+            | bun scripts/release-manifest.js sign --manifest manifest/manifest.json --out manifest/manifest.json.sig
+
+      # A wrong or rotated secret fails here, before anything is uploaded
+      - name: Verify the signature with the committed public key
+        run: |
+          bun scripts/release-manifest.js verify --manifest manifest/manifest.json \
+            --signature manifest/manifest.json.sig --public-key .github/manifest-public-key.txt
+
+      - name: Upload signed manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: manifest-signed
+          path: |
+            manifest/manifest.json
+            manifest/manifest.json.sig
+          if-no-files-found: error
+          retention-days: 7
+
+  # Dry runs only. Signs the manifest with a key made in this run, then
+  # checks it with aidm-ui's own verifier, so a manifest the UI would refuse
+  # fails the dry run. The private key stays in the runner's temp folder.
+  # The condition names its own status check: the implicit success() also
+  # looks at tag-images, which manifest needs and a dry run skips.
+  manifest-check:
+    name: Check release manifest with aidm-ui
+    needs: [check, manifest]
+    if: >-
+      !cancelled()
+      && needs.manifest.result == 'success'
+      && needs.check.outputs.publish != 'true'
+    # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # From the Bun release on GitHub, checked against scripts/bun-sha256sums.txt
+      - name: Download Bun
+        run: |
+          scripts/get-bun.sh linux-x64 "$RUNNER_TEMP/bun"
+          echo "$RUNNER_TEMP/bun" >> "$GITHUB_PATH"
+
+      - name: Download manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: manifest
+          path: manifest
+
+      - name: Sign and verify with a key made in this run
+        run: |
+          key="$RUNNER_TEMP/dry-run-key.pem"
+          openssl genpkey -algorithm ed25519 -out "$key"
+          openssl pkey -in "$key" -pubout -outform DER | tail -c 32 | base64 > manifest/dry-run-public-key.txt
+          bun scripts/release-manifest.js sign --manifest manifest/manifest.json --out manifest/manifest.json.sig < "$key"
+          bun scripts/release-manifest.js verify --manifest manifest/manifest.json \
+            --signature manifest/manifest.json.sig --public-key manifest/dry-run-public-key.txt
+
+      - name: Upload manifest, signature and public key
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: manifest-dry-run
+          path: |
+            manifest/manifest.json
+            manifest/manifest.json.sig
+            manifest/dry-run-public-key.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      # The verifier imports only files of its own repository, so nothing is installed
+      - name: Check out aidm-ui
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: AIDroneMap/aidm-ui
+          ref: c56493267722bc083af2bd330795a6c999ba4ab4
+          path: aidm-ui
+          persist-credentials: false
+
+      - name: Verify with aidm-ui's verifyManifest
+        run: |
+          cat > "$RUNNER_TEMP/check-manifest.ts" <<'EOF'
+          import { readFileSync } from "node:fs";
+          import { resolve } from "node:path";
+
+          const { verifyManifest } = await import(resolve("aidm-ui/server/manifest/verify.ts"));
+          const bytes = new Uint8Array(readFileSync("manifest/manifest.json"));
+          const signature = new Uint8Array(readFileSync("manifest/manifest.json.sig"));
+          const publicKey = readFileSync("manifest/dry-run-public-key.txt", "utf8").trim();
+          const result = await verifyManifest(bytes, signature, [{ id: "dry-run", publicKey, test: true }]);
+          console.log(JSON.stringify(result, null, 2));
+          if (!result.ok) {
+            console.error("aidm-ui refuses the manifest");
+            process.exit(1);
+          }
+          const expected = ["linux-amd64-cpu", "linux-arm64-cpu", "linux-amd64-gpu"];
+          const missing = expected.filter((id) => !result.manifest.variants[id]);
+          if (missing.length > 0 || result.skippedVariants.length > 0) {
+            console.error(`aidm-ui reads the wrong variants: missing ${missing.join(", ") || "none"}, skipped ${result.skippedVariants.join(", ") || "none"}`);
+            process.exit(1);
+          }
+          console.log("aidm-ui accepts the manifest with its three variants");
+          EOF
+          bun "$RUNNER_TEMP/check-manifest.ts"
+
   release:
     name: Draft release
-    needs: [check, manifest, executables-test]
+    needs: [check, tag-images, sign-manifest, executables-test]
     if: github.event_name == 'push'
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
@@ -629,13 +863,20 @@ jobs:
           name: executables
           path: dist
 
+      # Signed and verified by sign-manifest
+      - name: Download signed manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: manifest-signed
+          path: manifest
+
       # Creates or updates a draft. A published release is never touched.
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.check.outputs.version }}
-          CPU_DIGEST: ${{ needs.manifest.outputs.cpu-digest }}
-          GPU_DIGEST: ${{ needs.manifest.outputs.gpu-digest }}
+          CPU_DIGEST: ${{ needs.tag-images.outputs.cpu-digest }}
+          GPU_DIGEST: ${{ needs.tag-images.outputs.gpu-digest }}
         run: |
           tag="$GITHUB_REF_NAME"
           awk -v heading="## $VERSION" '
@@ -683,4 +924,4 @@ jobs:
           fi
 
           # Only reached for a draft
-          gh release upload "$tag" dist/aidm-api-* dist/SHA256SUMS --clobber
+          gh release upload "$tag" dist/aidm-api-* dist/SHA256SUMS manifest/manifest.json manifest/manifest.json.sig --clobber
