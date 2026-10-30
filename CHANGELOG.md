@@ -21,6 +21,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 - Pin `systeminformation` to 5.33.18. Callback, `/info` field mapping and credential-free S3 upload sizing tests in `tests/unit/systeminformation.test.js` preserve the CPU and memory contracts (#52).
 
+- Upgraded `busboy` to exactly 1.6.0 and adapted multipart upload parsing. Upload regression tests cover fields, safe filenames, completion, malformed input, interrupted streams and cancellation in `tests/unit/storage.test.js`. The source compatibility harness passes its available scenarios with unchanged golden files (#51).
+
 ### Fixed
 
 - `docs/swagger.json`, `docs/index.adoc` and the `/swagger.json` the API serves said version 2.5.0 in 2.6.1. They now say 2.6.1, and a unit test fails when a file that states the API version disagrees with `package.json` (#37).
