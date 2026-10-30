@@ -184,6 +184,8 @@ _optional_|Number of CPU cores (virtual)|integer
 _required_|Lowercase identifier of processing engine|string
 |*engineVersion* +
 _required_|Current version of processing engine|string
+|*imagesPath* +
+_optional_|Present and true when the node runs with --images_root and accepts imagesPath at task creation. Absent otherwise.|boolean
 |*maxImages* +
 _required_|Maximum number of images allowed for new tasks or null if there's no limit.|integer
 |*maxParallelTasks* +
@@ -341,6 +343,8 @@ _optional_|Token required for authentication (when authentication is required).|
 _optional_|An optional timestamp overriding the default creation date of the task.|integer|
 |*FormData*|*images* +
 _optional_|Images to process, plus optional files such as a GEO file (geo.txt), image groups file (image_groups.txt), GCP file (*.txt), seed file (seed.zip) or alignment files (align.las, align.laz, align.tif). If included, the GCP file should have .txt extension. If included, the seed archive pre-populates the task directory with its contents.|file|
+|*FormData*|*imagesPath* +
+_optional_|Path of a folder on this node to create the task from, without uploading the images. It needs the node to run with --images_root, and the folder must lie inside that root (GET /info then returns imagesPath). Every file at the top level of the folder with an image or video extension the engine accepts (.jpg .jpeg .png .tif .tiff .bmp .raw .dng .nef .jxl .mp4 .mov .lrv .ts, in any case) is linked into the task: a hard link, or an absolute symbolic link when a hard link cannot be made. Subfolders are not read, and nothing in the folder is written or removed. Removing the task removes the links only. Cannot be combined with zipurl. Files uploaded with the task, such as a GCP file, are added as usual. A refused folder fails the request with one of these errors: "imagesPath is not enabled on this node. Start the node with --images_root to enable it.", "imagesPath is outside the images root.", "Cannot read imagesPath: <reason>.", "Cannot read the images root: <reason>.", "imagesPath holds no supported image or video file.", "imagesPath and zipurl cannot both be set.", "Cannot link <file> into the task: <reason>."|string|
 |*FormData*|*name* +
 _optional_|An optional name to be associated with the task|string|
 |*FormData*|*options* +
@@ -448,6 +452,8 @@ _optional_|An optional UUID string that will be used as UUID for this task inste
 _optional_|Token required for authentication (when authentication is required).|string|
 |*FormData*|*dateCreated* +
 _optional_|An optional timestamp overriding the default creation date of the task.|integer|
+|*FormData*|*imagesPath* +
+_optional_|Path of a folder on this node to create the task from, without uploading the images. It needs the node to run with --images_root, and the folder must lie inside that root (GET /info then returns imagesPath). Every file at the top level of the folder with an image or video extension the engine accepts (.jpg .jpeg .png .tif .tiff .bmp .raw .dng .nef .jxl .mp4 .mov .lrv .ts, in any case) is linked into the task: a hard link, or an absolute symbolic link when a hard link cannot be made. Subfolders are not read, and nothing in the folder is written or removed. Removing the task removes the links only. Cannot be combined with zipurl. Files uploaded with the task, such as a GCP file, are added as usual. A refused folder fails the request with one of these errors: "imagesPath is not enabled on this node. Start the node with --images_root to enable it.", "imagesPath is outside the images root.", "Cannot read imagesPath: <reason>.", "Cannot read the images root: <reason>.", "imagesPath holds no supported image or video file.", "imagesPath and zipurl cannot both be set.", "Cannot link <file> into the task: <reason>."|string|
 |*FormData*|*name* +
 _optional_|An optional name to be associated with the task|string|
 |*FormData*|*options* +

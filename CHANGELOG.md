@@ -27,6 +27,8 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 - Upgraded `busboy` to exactly 1.6.0 and adapted multipart upload parsing. Upload regression tests cover fields, safe filenames, completion, malformed input, interrupted streams and cancellation in `tests/unit/storage.test.js`. The source compatibility harness passes its available scenarios with unchanged golden files (#51).
 
+- A task can now be created from a folder the API can read. The new form field `imagesPath` works at `POST /task/new/init` and `POST /task/new` when the API runs with `--images_root` (config key `imagesRoot`) and the folder lies inside that root. `GET /info` then returns `"imagesPath": true`. Without the root the key is absent and the field is refused. The API links the top-level image and video files of the folder into the task, with a hard link or, when that fails, an absolute symbolic link. It never writes into the folder, and removing the task removes only the links. A move of the staging folder across devices keeps the links as links. Each refusal is an error in the response. Evidence is in `tests/unit/images-path.test.js`, `tests/unit/images-path-links.test.js`, the `images-path` harness scenario and the dry run on the three executables. In `golden/default.json` only the hash and length of the served `swagger.json` change (#47).
+
 ### Fixed
 
 - Postprocessing reports an existing Entwine point cloud once, even when both `entwine` and `untwine` are installed. When output is missing, it tries `entwine` first and falls back to `untwine` if `entwine` is missing or fails. Regression tests in `tests/unit/postprocess.test.js` cover tool selection, temporary directory cleanup and nonfatal failures. Fixes #35.

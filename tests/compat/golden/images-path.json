@@ -1,0 +1,403 @@
+[
+  {
+    "step": "info with the capability",
+    "request": {
+      "method": "GET",
+      "path": "/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "version": "<version>",
+        "taskQueueCount": 0,
+        "totalMemory": "<number>",
+        "availableMemory": "<number>",
+        "cpuCores": "<number>",
+        "maxImages": null,
+        "maxParallelTasks": 1,
+        "engineVersion": "?",
+        "engine": "odx",
+        "imagesPath": true
+      }
+    }
+  },
+  {
+    "step": "chunked: init with imagesPath",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/init",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "from a folder",
+            "imagesPath": "<app>/tests/images-root/flight"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>"
+      }
+    }
+  },
+  {
+    "step": "chunked: upload a GCP file next to the folder",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/upload/<uuid-1>",
+      "body": {
+        "multipart": {
+          "fields": {},
+          "files": [
+            "images: gcp_list.txt (31 bytes)"
+          ]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "success": true
+      }
+    }
+  },
+  {
+    "step": "chunked: commit",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/commit/<uuid-1>"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>"
+      }
+    }
+  },
+  {
+    "step": "chunked: info",
+    "request": {
+      "method": "GET",
+      "path": "/task/<uuid-1>/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-1>",
+        "name": "from a folder",
+        "dateCreated": "<date>",
+        "processingTime": "<number>",
+        "status": {
+          "code": 40
+        },
+        "options": [
+          {
+            "name": "pc-ept",
+            "value": true
+          },
+          {
+            "name": "cog",
+            "value": true
+          },
+          {
+            "name": "gltf",
+            "value": true
+          }
+        ],
+        "imagesCount": 3,
+        "progress": 100
+      }
+    }
+  },
+  {
+    "step": "images folder of the chunked task",
+    "request": {
+      "note": "entries of data/<uuid>/images"
+    },
+    "response": {
+      "entries": [
+        "F_0001.JPG 300",
+        "F_0003.TIF 302",
+        "f_0002.jpeg 301"
+      ]
+    }
+  },
+  {
+    "step": "task new with imagesPath",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "name": "from a folder, one request",
+            "imagesPath": "<app>/tests/images-root/flight"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>"
+      }
+    }
+  },
+  {
+    "step": "info of task new with imagesPath",
+    "request": {
+      "method": "GET",
+      "path": "/task/<uuid-2>/info"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "uuid": "<uuid-2>",
+        "name": "from a folder, one request",
+        "dateCreated": "<date>",
+        "processingTime": "<number>",
+        "status": {
+          "code": 40
+        },
+        "options": [
+          {
+            "name": "pc-ept",
+            "value": true
+          },
+          {
+            "name": "cog",
+            "value": true
+          },
+          {
+            "name": "gltf",
+            "value": true
+          }
+        ],
+        "imagesCount": 3,
+        "progress": 100
+      }
+    }
+  },
+  {
+    "step": "task new error: imagesPath outside the root",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "imagesPath": "<app>/tests/images-root2"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "error": "imagesPath is outside the images root."
+      }
+    }
+  },
+  {
+    "step": "task new error: imagesPath does not exist",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "imagesPath": "<app>/tests/images-root/missing"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "error": "Cannot read imagesPath: it does not exist."
+      }
+    }
+  },
+  {
+    "step": "task new error: imagesPath without supported files",
+    "request": {
+      "method": "POST",
+      "path": "/task/new",
+      "body": {
+        "multipart": {
+          "fields": {
+            "imagesPath": "<app>/tests/images-root/empty"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "error": "imagesPath holds no supported image or video file."
+      }
+    }
+  },
+  {
+    "step": "chunked: init error: imagesPath with zipurl",
+    "request": {
+      "method": "POST",
+      "path": "/task/new/init",
+      "body": {
+        "multipart": {
+          "fields": {
+            "imagesPath": "<app>/tests/images-root/flight",
+            "zipurl": "http://127.0.0.1:<port>/images.zip"
+          },
+          "files": []
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "error": "imagesPath and zipurl cannot both be set."
+      }
+    }
+  },
+  {
+    "step": "remove the chunked task",
+    "request": {
+      "method": "POST",
+      "path": "/task/remove",
+      "body": {
+        "json": {
+          "uuid": "<uuid-1>"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "success": true
+      }
+    }
+  },
+  {
+    "step": "remove the one-request task",
+    "request": {
+      "method": "POST",
+      "path": "/task/remove",
+      "body": {
+        "json": {
+          "uuid": "<uuid-2>"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "success": true
+      }
+    }
+  },
+  {
+    "step": "source folder after the tasks are removed",
+    "request": {
+      "note": "entries of the images path"
+    },
+    "response": {
+      "unchanged": true,
+      "entries": [
+        "F_0001.JPG 300",
+        "F_0003.TIF 302",
+        "f_0002.jpeg 301",
+        "notes.txt 13",
+        "sub/"
+      ]
+    }
+  },
+  {
+    "step": "task list after remove",
+    "request": {
+      "method": "GET",
+      "path": "/task/list"
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "<body-length>",
+        "access-control-allow-origin": "*"
+      },
+      "body": []
+    }
+  }
+]

@@ -100,6 +100,12 @@ let server;
  *          required: false
  *          type: integer
  *        -
+ *          name: imagesPath
+ *          in: formData
+ *          description: 'Path of a folder on this node to create the task from, without uploading the images. It needs the node to run with --images_root, and the folder must lie inside that root (GET /info then returns imagesPath). Every file at the top level of the folder with an image or video extension the engine accepts (.jpg .jpeg .png .tif .tiff .bmp .raw .dng .nef .jxl .mp4 .mov .lrv .ts, in any case) is linked into the task: a hard link, or an absolute symbolic link when a hard link cannot be made. Subfolders are not read, and nothing in the folder is written or removed. Removing the task removes the links only. Cannot be combined with zipurl. Files uploaded with the task, such as a GCP file, are added as usual. A refused folder fails the request with one of these errors: "imagesPath is not enabled on this node. Start the node with --images_root to enable it.", "imagesPath is outside the images root.", "Cannot read imagesPath: <reason>.", "Cannot read the images root: <reason>.", "imagesPath holds no supported image or video file.", "imagesPath and zipurl cannot both be set.", "Cannot link <file> into the task: <reason>."'
+ *          required: false
+ *          type: string
+ *        -
  *          name: token
  *          in: query
  *          description: 'Token required for authentication (when authentication is required).'
@@ -222,6 +228,12 @@ app.post('/task/new/commit/:uuid', authCheck, taskNew.getUUID, taskNew.handleCom
  *          required: false
  *          type: string
  *        -
+ *          name: imagesPath
+ *          in: formData
+ *          description: 'Path of a folder on this node to create the task from, without uploading the images. It needs the node to run with --images_root, and the folder must lie inside that root (GET /info then returns imagesPath). Every file at the top level of the folder with an image or video extension the engine accepts (.jpg .jpeg .png .tif .tiff .bmp .raw .dng .nef .jxl .mp4 .mov .lrv .ts, in any case) is linked into the task: a hard link, or an absolute symbolic link when a hard link cannot be made. Subfolders are not read, and nothing in the folder is written or removed. Removing the task removes the links only. Cannot be combined with zipurl. Files uploaded with the task, such as a GCP file, are added as usual. A refused folder fails the request with one of these errors: "imagesPath is not enabled on this node. Start the node with --images_root to enable it.", "imagesPath is outside the images root.", "Cannot read imagesPath: <reason>.", "Cannot read the images root: <reason>.", "imagesPath holds no supported image or video file.", "imagesPath and zipurl cannot both be set.", "Cannot link <file> into the task: <reason>."'
+ *          required: false
+ *          type: string
+ *        -
  *          name: name
  *          in: formData
  *          description: An optional name to be associated with the task
@@ -286,14 +298,14 @@ app.post('/task/new/commit/:uuid', authCheck, taskNew.getUUID, taskNew.handleCom
  */
 app.post('/task/new', authCheck, taskNew.assignUUID, taskNew.uploadImages, (req, res, next) => {
     req.body = req.body || {};
-    if ((!req.files || req.files.length === 0) && !req.body.zipurl) req.error = "Need at least 1 file or a zip file url.";
+    if ((!req.files || req.files.length === 0) && !req.body.zipurl && !req.body.imagesPath) req.error = "Need at least 1 file or a zip file url.";
     else if (config.maxImages && req.files && req.files.length > config.maxImages) req.error = `${req.files.length} images uploaded, but this node can only process up to ${config.maxImages}.`;
-    else if ((!req.files || req.files.length === 0) && req.body.zipurl) {
+    else if ((!req.files || req.files.length === 0) && (req.body.zipurl || req.body.imagesPath)) {
         const srcPath = path.join("tmp", req.id);
         fs.mkdirSync(srcPath);
     }
     next();
-}, taskNew.createTask);
+}, taskNew.linkImages, taskNew.createTask);
 
 let getTaskFromUuid = (req, res, next) => {
     let task = taskManager.find(req.params.uuid);
@@ -753,6 +765,9 @@ app.get('/options', authCheck, (req, res) => {
  *             engine:
  *               type: string
  *               description: Lowercase identifier of processing engine
+ *             imagesPath:
+ *               type: boolean
+ *               description: Present and true when the node runs with --images_root and accepts imagesPath at task creation. Absent otherwise.
  */
 app.get('/info', authCheck, (req, res) => {
     async.parallel({
@@ -779,7 +794,8 @@ app.get('/info', authCheck, (req, res) => {
             maxImages: config.maxImages,
             maxParallelTasks: config.parallelQueueProcessing,
             engineVersion,
-            engine
+            engine,
+            ...(config.imagesRoot ? { imagesPath: true } : {})
         });
     });
 });

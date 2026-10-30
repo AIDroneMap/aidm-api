@@ -29,6 +29,7 @@ const async = require('async');
 const odmInfo = require('./odmInfo');
 const { download } = require('./httpClient');
 const ziputils = require('./ziputils');
+const imagesPath = require('./imagesPath');
 const statusCodes = require('./statusCodes');
 const logger = require('./logger');
 
@@ -159,10 +160,19 @@ module.exports = {
                 }else cb();
             },
             cb => {
+                const error = imagesPath.precheck(req.body);
+                if (error) cb(new Error(error));
+                else cb();
+            },
+            cb => {
                 fs.stat(srcPath, (err, stat) => {
                     if (err && err.code === 'ENOENT') fs.mkdir(srcPath, undefined, cb);
                     else cb(); // Dir already exists
                 });
+            },
+            cb => {
+                // Link the files of imagesPath (if any) where uploads land
+                imagesPath.linkInto(req.body, srcPath, cb);
             },
             cb => {
                 fs.writeFile(bodyFile, JSON.stringify(req.body), {encoding: 'utf8'}, cb);
@@ -173,6 +183,16 @@ module.exports = {
             }
         ],  err => {
             if (err) die(err.message);
+        });
+    },
+
+    // Links the files of imagesPath (if any) into the staging folder of
+    // POST /task/new, so a failure is an error in the response
+    linkImages: (req, res, next) => {
+        if (req.error !== undefined) return next();
+        imagesPath.linkInto(req.body, path.join("tmp", req.id), err => {
+            if (err) req.error = err.message;
+            next();
         });
     },
 
@@ -245,9 +265,10 @@ module.exports = {
                 // the folder while we try to move it, resulting in
                 // an operation not permitted error
                 let retries = 0;
+                let links;
 
                 const move = () => {
-                    movePath(srcPath, destImagesPath, err => {
+                    movePath(srcPath, destImagesPath, links, imagesPath.link, err => {
                         if (!err) cb(); // Done
                         else{
                             if (++retries < 20){
@@ -260,7 +281,12 @@ module.exports = {
                         }
                     });
                 }
-                move();
+
+                // A move across devices makes the hard links of imagesPath again
+                imagesPath.hardLinks(req.body, srcPath, (err, found) => {
+                    links = found;
+                    move();
+                });
             },
             // Zip files handling
             cb => {
