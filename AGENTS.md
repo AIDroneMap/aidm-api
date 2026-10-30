@@ -23,7 +23,8 @@ This repository covers a single machine only. Scheduling across machines and clo
 | `config.js`, `config-default.json` | Configuration: command-line flags and the JSON file |
 | `libs/` | Task lifecycle (`Task.js`, `TaskManager.js`, `taskNew.js`), engine runner (`odmRunner.js`), S3 upload, storage, auth |
 | `public/` | The small built-in web page served at `/` |
-| `docs/` | API specification (`index.adoc`, `swagger.json`) and its generators |
+| `GLOSSARY.md` | The words the docs, specs and pull requests use |
+| `docs/` | API specification (`index.adoc`, `swagger.json`) and its generators; `docs/specs/` holds the specs, `docs/adr/` the decision records, `docs/design/` the design notes a spec is written from |
 | `tests/` | Sample engine outputs used by test mode; `tests/compat/` holds the compatibility harness and its golden files |
 | `scripts/` | Build of the executable, pinned tool downloads, release helpers |
 | `Dockerfile`, `Dockerfile.gpu` | Images built on top of the engine image (`FROM_REPO` build argument) |
