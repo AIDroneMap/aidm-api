@@ -6,9 +6,24 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 
 ## Unreleased
 
+- Combined the eight dependency changes into one merge candidate under the approved plan for #11. Component pull requests #58 through #65 remain review records. Evidence is in `docs/specs/0002-dependency-cleanup.md`, `tests/unit/` and `tests/compat/run.js`. One exact-head full release dry run is required before maintainer merge.
+
 ### Changed
 
 - Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+- Replace direct `rimraf` cleanup calls with asynchronous recursive `fs.rm`. Missing paths are harmless, and removal errors still reach callbacks. The combined dependency cleanup also removes the unused transitive copy. Regression tests cover task deletion, upload cleanup and stale directories (#49).
+
+- Task IDs use `crypto.randomUUID()` instead of the direct `uuid` dependency (#48). UUIDv4 format, uniqueness and supplied-ID validation are covered by `tests/unit/task-uuid.test.js`.
+- Pinned `node-schedule` to 2.1.2. Task cleanup still runs hourly, and runtime checks still run every minute when enabled. `tests/unit/task-schedules.test.js` checks the callbacks, schedules and cancellation (#54).
+- Replace `mv` with filesystem moves and a cross-device copy fallback for uploads, seed files and GCP files. Copy errors keep the source. Regression tests cover moves, collisions and failures (#50).
+
+- Pinned `archiver` to 8.0.0 and switched the ZIP fallback to its `ZipArchive` constructor. Regression tests check complete archive contents, output-close ordering and error callbacks in `tests/unit/archive-fallback.test.js` (#53).
+
+- ZIP URL downloads and task webhooks use built-in HTTP support instead of the deprecated `request` dependency. Downloads keep HEAD before GET, redirects and the existing invalid-URL and connection-refused messages. Webhooks keep their JSON payloads and retry policy. Regression tests in `tests/unit/http-client.test.js` cover these cases and failed download streams (#10).
+
+- Pin `systeminformation` to 5.33.18. Callback, `/info` field mapping and credential-free S3 upload sizing tests in `tests/unit/systeminformation.test.js` preserve the CPU and memory contracts (#52).
+
+- Upgraded `busboy` to exactly 1.6.0 and adapted multipart upload parsing. Upload regression tests cover fields, safe filenames, completion, malformed input, interrupted streams and cancellation in `tests/unit/storage.test.js`. The source compatibility harness passes its available scenarios with unchanged golden files (#51).
 
 ### Fixed
 

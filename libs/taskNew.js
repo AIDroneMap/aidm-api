@@ -20,31 +20,22 @@ const storage = require('./storage');
 const fs = require('fs');
 const path = require('path');
 const TaskManager = require('./TaskManager');
-const uuidv4 = require('uuid/v4');
+const crypto = require('crypto');
 const config = require('../config.js');
-const rmdir = require('rimraf');
 const Directories = require('./Directories');
-const mv = require('mv');
+const movePath = require('./move');
 const Task = require('./Task');
 const async = require('async');
 const odmInfo = require('./odmInfo');
-const request = require('request');
+const { download } = require('./httpClient');
 const ziputils = require('./ziputils');
 const statusCodes = require('./statusCodes');
 const logger = require('./logger');
 
-const download = function(uri, filename, callback) {
-    request.head(uri, function(err, res, body) {
-        if (err) callback(err);
-        else{
-            request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
-        }
-    });
-};
-
 const removeDirectory = function(dir, cb = () => {}){
     fs.stat(dir, (err, stats) => {
-        if (!err && stats.isDirectory()) rmdir(dir, cb); // ignore errors, don't wait
+        if (err && err.code === 'ENOENT') cb();
+        else if (!err && stats.isDirectory()) fs.rm(dir, { recursive: true, force: true }, cb);
         else cb(err);
     });
 };
@@ -64,7 +55,7 @@ module.exports = {
                 res.json({error: `Invalid set-uuid: ${userUuid}`})
             }
         }else{
-            req.id = uuidv4();
+            req.id = crypto.randomUUID();
             next();
         }
     },
@@ -256,7 +247,7 @@ module.exports = {
                 let retries = 0;
 
                 const move = () => {
-                    mv(srcPath, destImagesPath, err => {
+                    movePath(srcPath, destImagesPath, err => {
                         if (!err) cb(); // Done
                         else{
                             if (++retries < 20){
@@ -278,7 +269,7 @@ module.exports = {
 
                     async.series([
                         // Move to project root
-                        cb => mv(path.join(destImagesPath, "seed.zip"), seedFileDst, cb),
+                        cb => movePath(path.join(destImagesPath, "seed.zip"), seedFileDst, cb),
                         
                         // Extract
                         cb => {
@@ -330,7 +321,7 @@ module.exports = {
                     else {
                         async.eachSeries(entries, (entry, cb) => {
                             if (/\.txt$/gi.test(entry) || /^align\.(las|laz|tif)$/gi.test(entry)) {
-                                mv(path.join(destImagesPath, entry), path.join(destGcpPath, entry), cb);
+                                movePath(path.join(destImagesPath, entry), path.join(destGcpPath, entry), cb);
                             }else if (/\.zip$/gi.test(entry)){
                                 fs.unlink(path.join(destImagesPath, entry), cb);
                             } else cb();

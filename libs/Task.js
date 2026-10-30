@@ -24,16 +24,15 @@ const assert = require('assert');
 const logger = require('./logger');
 const fs = require('fs');
 const path = require('path');
-const rmdir = require('rimraf');
 const odmRunner = require('./odmRunner');
 const odmInfo = require('./odmInfo');
 const processRunner = require('./processRunner');
 const Directories = require('./Directories');
 const kill = require('tree-kill');
 const S3 = require('./S3');
-const request = require('request');
+const { postJson } = require('./httpClient');
 const utils = require('./utils');
-const archiver = require('archiver');
+const { ZipArchive } = require('archiver');
 const glob = require('glob');
 const appRoot = require('./appRoot');
 
@@ -208,9 +207,9 @@ module.exports = class Task{
 
     // Deletes files and folders related to this task
     cleanup(cb){
-        if (this.initialized) rmdir(this.getProjectFolderPath(), cb);
+        if (this.initialized) fs.rm(this.getProjectFolderPath(), { recursive: true, force: true }, cb);
         else this.onInitialize.push(() => {
-            rmdir(this.getProjectFolderPath(), cb);
+            fs.rm(this.getProjectFolderPath(), { recursive: true, force: true }, cb);
         });
     }
 
@@ -344,7 +343,7 @@ module.exports = class Task{
                     this.output.push(`Compressing ${outputFilename}\n`);
 
                     let output = fs.createWriteStream(this.getAssetsArchivePath(outputFilename));
-                    let archive = archiver.create('zip', {
+                    let archive = new ZipArchive({
                             zlib: { level: 1 } // Sets the compression level (1 = best speed since most assets are already compressed)
                         });
 
@@ -724,7 +723,7 @@ module.exports = class Task{
                             logger.warn(`Webhook invokation failed, will not retry: ${hook}`);
                             return;
                         }
-                        request.post(hook, { json },
+                        postJson(hook, json,
                             (error, response) => {
                                 if (error || response.statusCode != 200){
                                     logger.warn(`Webhook invokation failed, will retry in a bit: ${hook}`);

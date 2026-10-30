@@ -43,7 +43,11 @@ const parse = (req, res, next, opts) => {
 
     let busboy;
     try{
-        busboy = new Busboy({ headers: req.headers });
+        busboy = Busboy({
+            headers: req.headers,
+            defParamCharset: 'utf8',
+            limits: { fieldSize: 1024 * 1024 + 1 }
+        });
     }catch(e){
         return next(e);
     }
@@ -91,16 +95,18 @@ const parse = (req, res, next, opts) => {
 
     const socket = req.socket;
     const onSocketClose = () => abort(new Error("Upload aborted"));
+    const onRequestError = () => abort(new Error("Upload aborted"));
 
     const unwatch = () => {
         if (socket) socket.removeListener('close', onSocketClose);
+        req.removeListener('aborted', onRequestError);
         if (!opts.idleTimeout) return;
         req.removeListener('timeout', onTimeout);
         req.setTimeout(0);
     };
 
     const done = err => {
-        if (isDone) return;
+        if (isDone || !ended) return;
         isDone = true;
 
         unregister();
@@ -109,25 +115,33 @@ const parse = (req, res, next, opts) => {
         req.resume();
         busboy.removeAllListeners();
         busboy.on('error', () => {});
+        busboy.destroy();
 
-        if (ended) next(err);
-        else req.once('end', () => next(err));
+        next(err);
     };
 
     const check = () => {
         if (inflight !== 0) return;
-        if (aborted){
-            if (!removed) return;
-            unregister();
-            waiters.splice(0).forEach(cb => cb());
-        }else if (failErr){
-            if (cleaning) return;
-            cleaning = true;
-            removeFiles(uploaded, () => done(failErr));
+        if (aborted || failErr){
+            if (!removed){
+                if (cleaning) return;
+                cleaning = true;
+                return removeFiles(uploaded, () => {
+                    removed = true;
+                    check();
+                });
+            }
+            if (aborted){
+                unregister();
+                waiters.splice(0).forEach(cb => cb());
+            }else done(failErr);
         }else if (readFinished) done();
     };
 
     const fail = err => {
+        if (err.message === 'Unexpected end of form' || err.message === 'Unexpected end of file'){
+            err = new Error('Unexpected end of multipart data');
+        }
         if (!failErr) failErr = err;
         check();
     };
@@ -140,12 +154,10 @@ const parse = (req, res, next, opts) => {
         req.unpipe(busboy);
         busboy.removeAllListeners();
         busboy.on('error', () => {});
+        busboy.destroy();
 
         for (const out of writes) out.destroy();
-        removeFiles(uploaded, () => {
-            removed = true;
-            check();
-        });
+        check();
 
         if (!isDone){
             isDone = true;
@@ -153,21 +165,41 @@ const parse = (req, res, next, opts) => {
         }
     };
 
-    req.on('end', () => ended = true);
+    req.on('end', () => {
+        ended = true;
+        check();
+    });
+    req.once('aborted', onRequestError);
+    req.once('error', onRequestError);
+    req.once('close', () => {
+        if (!ended && !req.complete) onRequestError();
+        req.removeListener('error', onRequestError);
+    });
 
     if (socket) socket.once('close', onSocketClose);
 
     if (opts.field && opts.idleTimeout) req.setTimeout(opts.idleTimeout, onTimeout);
 
-    busboy.on('field', (name, value, nameTruncated, valueTruncated) => {
-        if (valueTruncated) return fail(new Error(`Field value too long: ${name}`));
+    busboy.on('field', (name, value, info) => {
+        if (info.valueTruncated) return fail(new Error(`Field value too long: ${name}`));
 
         if (name in req.body) req.body[name] = [].concat(req.body[name], value);
         else req.body[name] = value;
     });
 
-    busboy.on('file', (fieldname, fileStream, filename) => {
-        if (!filename || failErr) return fileStream.resume();
+    busboy.on('file', (fieldname, fileStream, info) => {
+        const filename = info.filename;
+        let out = null;
+        let broken = false;
+        let attempts = 0;
+
+        fileStream.on('error', err => {
+            broken = true;
+            fail(err);
+            if (out) out.destroy();
+        });
+
+        if (!filename || failErr || aborted) return fileStream.resume();
         if (fieldname !== opts.field){
             fileStream.resume();
             return fail(new Error("Unexpected field"));
@@ -179,23 +211,22 @@ const parse = (req, res, next, opts) => {
 
         const dir = opts.dir(req);
         let name = opts.rename(filename);
-        let out = null;
-        let broken = false;
-        let attempts = 0;
+        if (typeof name !== 'string' || !name || name === '.' || name === '..' || name.includes('\0') ||
+            path.basename(name) !== name || path.win32.basename(name) !== name){
+            fileStream.resume();
+            return fail(new Error("Invalid filename"));
+        }
 
         inflight++;
 
         const release = err => {
-            if (err) failErr = failErr || err;
+            if (err){
+                failErr = failErr || err;
+                fileStream.resume();
+            }
             inflight--;
             check();
         };
-
-        fileStream.on('error', err => {
-            broken = true;
-            fail(err);
-            if (out) out.destroy();
-        });
 
         const create = () => {
             if (aborted || broken) return release();
@@ -211,7 +242,11 @@ const parse = (req, res, next, opts) => {
                 let finished = false;
                 out = fs.createWriteStream(finalPath, { fd });
                 writes.add(out);
-                out.on('error', fail);
+                out.on('error', err => {
+                    fileStream.unpipe(out);
+                    fileStream.resume();
+                    fail(err);
+                });
                 out.on('close', () => {
                     writes.delete(out);
                     out = null;
@@ -236,8 +271,12 @@ const parse = (req, res, next, opts) => {
         });
     });
 
-    busboy.on('error', fail);
-    busboy.on('finish', () => {
+    busboy.on('error', err => {
+        req.unpipe(busboy);
+        req.resume();
+        fail(err);
+    });
+    busboy.on('close', () => {
         readFinished = true;
         check();
     });
