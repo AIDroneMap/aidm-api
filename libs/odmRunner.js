@@ -147,7 +147,7 @@ module.exports = {
             let handleResult = (err, result) => {
                 fs.exists(env.ODX_OPTIONS_TMP_FILE, exists => {
                     if (exists) fs.unlink(env.ODX_OPTIONS_TMP_FILE, err => {
-                        if (err) console.warning(`Cannot cleanup ${env.ODX_OPTIONS_TMP_FILE}`);
+                        if (err) console.warn(`Cannot cleanup ${env.ODX_OPTIONS_TMP_FILE}`);
                     });
                 });
     
