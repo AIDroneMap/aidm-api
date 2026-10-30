@@ -9,6 +9,7 @@ The API version follows semantic versioning from NodeODX 2.4.0. The AIDM 0.1.0 r
 ### Changed
 
 - Added the dependency-cleanup plan in `docs/specs/0002-dependency-cleanup.md`, with one pull request per dependency and compatibility checks for each change (#11).
+- Replace direct `rimraf` cleanup calls with asynchronous recursive `fs.rm`. Missing paths are harmless, and removal errors still reach callbacks. Keep the transitive copy required by `mv`. Regression tests cover task deletion, upload cleanup and stale directories (#49).
 
 ### Fixed
 
