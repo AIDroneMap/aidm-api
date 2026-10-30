@@ -65,3 +65,24 @@ test('runs 7z when only 7z is installed', () => {
     expect(calls.unzip.length).toBe(0);
     expect(results).toEqual([[]]);
 });
+
+// config.sevenZFirst: a release archive with its bundled 7-Zip (libs/apps.js)
+test('runs the bundled 7z before unzip', () => {
+    const ziputils = loadZiputils({ hasUnzip: true, has7z: true, sevenZFirst: true });
+    const results = [];
+    ziputils.unzip('images.zip', 'out', (...args) => results.push(args), true);
+
+    expect(calls.sevenUnzip).toEqual([{ file: 'images.zip', destination: 'out', noDirectories: true }]);
+    expect(calls.unzip.length).toBe(0);
+    expect(results).toEqual([[]]);
+});
+
+test('runs unzip when the bundled 7z does not start', () => {
+    const ziputils = loadZiputils({ hasUnzip: true, has7z: false, sevenZFirst: false });
+    const results = [];
+    ziputils.unzip('images.zip', 'out', (...args) => results.push(args));
+
+    expect(calls.unzip).toEqual([{ file: 'images.zip', destination: 'out', noDirectories: false }]);
+    expect(calls.sevenUnzip.length).toBe(0);
+    expect(results).toEqual([[]]);
+});

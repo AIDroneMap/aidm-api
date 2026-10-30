@@ -75,7 +75,7 @@ The result is one executable with no runtime to install. It needs these files ne
 
 Each release has an archive for Linux x64, Linux arm64 and Windows x64: `aidm-api-<version>-linux-x64.tar.gz`, `aidm-api-<version>-linux-arm64.tar.gz` and `aidm-api-<version>-windows-x64.zip`. `SHA256SUMS` lists their checksums.
 
-An archive has one folder with the executable (`aidm-api`, or `aidm-api.exe` on Windows), `config-default.json`, `public/`, `helpers/`, `scripts/postprocess.sh`, `docs/swagger.json`, the sample outputs in `tests/`, empty `tmp/` and `data/` folders, `LICENSE`, `SOURCE` and `THIRD-PARTY-NOTICES.txt`. The notices file has the licences of Bun and of every npm package inside the executable.
+An archive has one folder with the executable (`aidm-api`, or `aidm-api.exe` on Windows), `config-default.json`, `public/`, `helpers/`, `scripts/postprocess.sh`, `docs/swagger.json`, the sample outputs in `tests/`, empty `tmp/` and `data/` folders, `LICENSE`, `SOURCE`, `THIRD-PARTY-NOTICES.txt` and 7-Zip in `apps/7z/`. The notices file has the licences of Bun, of every npm package inside the executable and of the bundled 7-Zip.
 
 Unpack it, then start it from that folder. You need an installed AIDM engine:
 
@@ -85,11 +85,11 @@ cd aidm-api-<version>-linux-x64
 ./aidm-api --odx_path /path/to/aidm
 ```
 
-On every platform, install `unzip` and `7z` and put them on the `PATH`, as the images do. Without them, tasks with zip files (uploads and `zipurl`) fail with an error. Without `7z`, the API builds `all.zip` with a slower JavaScript fallback.
+The archives bundle 7-Zip. The executable uses it to extract zip files (uploads and `zipurl`) and to build `all.zip`, so you install no zip tool. The images install both `unzip` and `7z`. To run from source, install `unzip` and `7z` and put them on the `PATH`. Without them, tasks with zip files fail with an error. Without `7z`, the API builds `all.zip` with a slower JavaScript fallback.
 
 On Windows, only test mode works today, because there is no Windows engine: run `aidm-api.exe --test`.
 
-To build an archive yourself, run `bun install --frozen-lockfile --production`, then `scripts/package.sh linux-x64 dist`.
+To build an archive yourself, run `bun install --frozen-lockfile --production`, then `scripts/package.sh linux-x64 dist`. The script downloads the 7-Zip build pinned in `scripts/7zip-sha256sums.txt`.
 
 ### Keeping results
 

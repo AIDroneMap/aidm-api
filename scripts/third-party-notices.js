@@ -1,11 +1,16 @@
 #!/usr/bin/env bun
 // Write THIRD-PARTY-NOTICES.txt for a compiled AIDM API executable.
 //
-// Usage: bun scripts/third-party-notices.js <outfile>
+// Usage: bun scripts/third-party-notices.js [--7zip <dir>] <outfile>
 //
 // Run "bun install --frozen-lockfile --production" first. The script lists
 // the Bun runtime and every npm package in the production dependency tree,
 // with licence texts. It has no dependencies.
+//
+// --7zip is the folder scripts/get-7zip.sh filled: the 7-Zip executable the
+// archive bundles in apps/7z/, License.txt from its package and source.txt.
+// The licence text is copied as it is, so the notices carry the exact text of
+// the pinned package.
 "use strict";
 
 const fs = require("fs");
@@ -109,9 +114,28 @@ function collect() {
     );
 }
 
+// The bundled 7-Zip, from the folder scripts/get-7zip.sh filled
+function readSevenZip(dir) {
+    const binary = ["7zzs", "7za.exe"].find((name) => fs.existsSync(path.join(dir, name)));
+    if (!binary) fail("no 7zzs or 7za.exe in " + dir);
+    for (const name of ["License.txt", "source.txt"]) {
+        if (!fs.existsSync(path.join(dir, name))) fail("no " + name + " in " + dir);
+    }
+    const [packageUrl, sourceUrl] = readText(path.join(dir, "source.txt")).split("\n");
+    return { binary, packageUrl, sourceUrl, licence: readText(path.join(dir, "License.txt")) };
+}
+
 function main() {
-    const outfile = process.argv[2];
-    if (!outfile) fail("usage: bun scripts/third-party-notices.js <outfile>");
+    const usage = "usage: bun scripts/third-party-notices.js [--7zip <dir>] <outfile>";
+    const args = process.argv.slice(2);
+    let sevenZip = null;
+    if (args[0] === "--7zip") {
+        if (args.length < 2) fail(usage);
+        sevenZip = readSevenZip(args[1]);
+        args.splice(0, 2);
+    }
+    const outfile = args[0];
+    if (!outfile || args.length !== 1) fail(usage);
 
     const bunVersion = readText(path.join(root, ".bun-version")).trim();
     const rule = "=".repeat(78);
@@ -127,6 +151,13 @@ function main() {
         "so it contains the Bun runtime and the npm packages listed below.",
         ""
     );
+    if (sevenZip) {
+        out.push(
+            "The archive also holds 7-Zip in apps/7z/" + sevenZip.binary + ". The API runs it to",
+            "extract zip files and to build all.zip.",
+            ""
+        );
+    }
 
     section("Bun " + bunVersion);
     out.push(readText(path.join(noticesDir, "bun-LICENSE.md")), "");
@@ -172,6 +203,21 @@ function main() {
         );
         if (repo) out.push("Repository: " + repo);
         out.push("", text === null ? "No licence file in the package." : text, "");
+    }
+
+    if (sevenZip) {
+        section("7-Zip");
+        out.push(
+            "apps/7z/" + sevenZip.binary + " is the official 7-Zip build from",
+            sevenZip.packageUrl,
+            "The 7-Zip source code of the same version is at",
+            sevenZip.sourceUrl,
+            "The text below is License.txt from that package. The GNU LGPL it names is",
+            "the version 2.1 text above.",
+            "",
+            sevenZip.licence,
+            ""
+        );
     }
 
     fs.mkdirSync(path.dirname(path.resolve(outfile)), { recursive: true });

@@ -432,10 +432,15 @@ function diffText(expected, actual) {
 // ---------------------------------------------------------------------------
 // Tools
 
+// The 7-Zip a release archive bundles (scripts/package.sh). A compiled
+// executable uses it before the PATH (libs/apps.js). Returns its path or null.
+function bundledSevenZip(appDir) {
+    const file = path.join(appDir, 'apps', '7z', process.platform === 'win32' ? '7za.exe' : '7zzs');
+    return fs.existsSync(file) ? path.resolve(file) : null;
+}
+
 function hasTool(name, appDir) {
-    let cmd = name;
-    const bundled = path.join(appDir, 'apps', name === '7z' ? '7z' : 'unzip', name === '7z' ? '7z.exe' : 'unzip.exe');
-    if (fs.existsSync(bundled)) cmd = path.resolve(bundled);
+    const cmd = (name === '7z' && bundledSevenZip(appDir)) || name;
     try {
         return spawnSync(cmd, ['--help']).status === 0;
     } catch (e) {
@@ -527,13 +532,6 @@ function envWithoutTools() {
         env.PATH = emptyDir;
     }
     return env;
-}
-
-// Removes the unzip and 7z programs that ship inside a Windows release folder
-function removeBundledTools(appDir) {
-    ['7z/7z.exe', 'unzip/unzip.exe'].forEach(f => {
-        try { fs.unlinkSync(path.join(appDir, 'apps', f)); } catch (e) { /* not there */ }
-    });
 }
 
 // ---------------------------------------------------------------------------
@@ -960,6 +958,7 @@ scenarios.push({
 
 // The server runs with a PATH that has neither unzip nor 7z, on every machine.
 // A task with a zip file must fail with a clear error and the server must stay up.
+// An app that bundles 7-Zip always has a tool, so the scenario is skipped there.
 scenarios.push({
     name: 'zip-input-no-tools',
     noTools: true,
@@ -1165,13 +1164,33 @@ function compare(actual, expected, skipZip) {
     return { problems, skipped };
 }
 
+// The corrupt-zip error names the tool that ran. The golden file is recorded
+// from source mode, where unzip runs first; a release archive runs its bundled
+// 7-Zip, which reports the same failure with its own text (ADR 0003). The
+// harness treats the two texts as equal for this one step, and only these two.
+const SAME_TOOL_MESSAGE = {
+    scenario: 'zip-input',
+    step: 'info of zipurl 404',
+    golden: 'Could not extract .zip file, unzip exited with code 9',
+    same: 'Could not extract .zip file, 7z exited with code 2'
+};
+
+function sameToolMessage(scenario, entries) {
+    const rule = SAME_TOOL_MESSAGE;
+    if (scenario !== rule.scenario) return;
+    entries.forEach(entry => {
+        if (entry.step !== rule.step) return;
+        const status = entry.response && entry.response.body && entry.response.body.status;
+        if (status && status.errorMessage === rule.same) status.errorMessage = rule.golden;
+    });
+}
+
 async function runScenario(sc, opts, env) {
     const result = { name: sc.name, steps: 0, problems: [], error: null, log: [] };
     const copyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aidm-compat-' + sc.name + '-'));
     let server = null;
     try {
         copyApp(opts.appDir, copyDir);
-        if (sc.noTools) removeBundledTools(copyDir);
         const port = await freePort();
         server = startServer(opts.command, copyDir, port, sc.flags(env), !!sc.noTools);
         await waitReady(server, port);
@@ -1189,7 +1208,9 @@ async function runScenario(sc, opts, env) {
             } else {
                 const expected = JSON.parse(fs.readFileSync(file, 'utf8'));
                 updateModelSize(expected);
-                const cmp = compare(JSON.parse(JSON.stringify(ctx.entries)), expected, !env.tools.sevenZ);
+                const actual = JSON.parse(JSON.stringify(ctx.entries));
+                sameToolMessage(sc.name, actual);
+                const cmp = compare(actual, expected, !env.tools.sevenZ);
                 result.problems = cmp.problems;
                 result.skippedSteps = cmp.skipped;
             }
@@ -1229,8 +1250,10 @@ async function main() {
         process.exit(2);
     }
 
+    const bundled = bundledSevenZip(opts.appDir);
     const tools = { unzip: hasTool('unzip', opts.appDir), sevenZ: hasTool('7z', opts.appDir) };
-    console.log('Tools: unzip ' + (tools.unzip ? 'found' : 'missing') + ', 7z ' + (tools.sevenZ ? 'found' : 'missing'));
+    console.log('Tools: unzip ' + (tools.unzip ? 'found' : 'missing') + ', 7z ' + (tools.sevenZ ? 'found' : 'missing') +
+        (bundled ? ' (bundled: ' + bundled + ')' : ''));
     const canUnzip = tools.unzip || tools.sevenZ;
     // Scenarios that start the server without the tools do not need them on PATH
     if (opts.update && !(tools.unzip && tools.sevenZ) && list.some(s => !s.noTools)) {
@@ -1257,6 +1280,12 @@ async function main() {
     for (const sc of list) {
         if (sc.needsUnzip && !canUnzip) {
             const reason = 'neither unzip nor 7z is on PATH (the golden file holds the messages of the tools; zip-input-no-tools checks the case without them)';
+            console.log('SKIP ' + sc.name + ': ' + reason);
+            skipped.push(sc.name + ' (' + reason + ')');
+            continue;
+        }
+        if (sc.noTools && bundled) {
+            const reason = 'the app bundles 7-Zip in apps/7z, so it always has a tool (run the harness on a copy without apps/ to check this scenario)';
             console.log('SKIP ' + sc.name + ': ' + reason);
             skipped.push(sc.name + ' (' + reason + ')');
             continue;
@@ -1289,7 +1318,12 @@ async function main() {
     process.exit(failed ? 1 : 0);
 }
 
-main().catch(e => {
-    console.error(e && e.stack ? e.stack : e);
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(e => {
+        console.error(e && e.stack ? e.stack : e);
+        process.exit(1);
+    });
+}
+
+// For the unit tests
+module.exports = { sameToolMessage };
