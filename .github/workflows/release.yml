@@ -217,6 +217,35 @@ jobs:
           sha256sum aidm-api-* > SHA256SUMS
           cat SHA256SUMS
 
+      # Each archive must hold the 7-Zip build for its own platform in
+      # apps/7z/, which the executable uses before the PATH (libs/apps.js).
+      # file names the format and the CPU of the binary in the archive.
+      - name: Check the bundled 7-Zip in each archive
+        working-directory: dist
+        run: |
+          version=$(jq -r .version ../package.json)
+          fail() { echo "::error::$1"; exit 1; }
+          check() {
+            local platform="$1" binary="$2" pattern="$3"
+            local name="aidm-api-$version-$platform" archive member mode type
+            member="$name/apps/7z/$binary"
+            if [ "$platform" = "windows-x64" ]; then
+              archive="$name.zip"
+              type=$(python3 -I -c 'import sys, zipfile; sys.stdout.buffer.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]))' \
+                "$archive" "$member" | file -b -) || fail "$archive has no $member"
+            else
+              archive="$name.tar.gz"
+              mode=$(tar -tvzf "$archive" "$member" | awk '{ print $1 }') || fail "$archive has no $member"
+              [ "$mode" = "-rwxr-xr-x" ] || fail "$member in $archive is not executable: $mode"
+              type=$(tar -xzOf "$archive" "$member" | file -b -)
+            fi
+            echo "$archive: $member: $type"
+            grep -Eq "$pattern" <<< "$type" || fail "$member in $archive is not a $platform binary"
+          }
+          check linux-x64 7zzs '^ELF 64-bit LSB .*x86-64'
+          check linux-arm64 7zzs '^ELF 64-bit LSB .*ARM aarch64'
+          check windows-x64 7za.exe '^PE32\+ executable.*x86-64'
+
       - name: Upload archives
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -339,26 +368,65 @@ jobs:
               /bun/bun tests/compat/run.js --app /app -- "$(command -v qemu-x86_64)" -cpu Nehalem ./aidm-api
             '
 
-      # Without 7z the API builds all.zip with its JavaScript fallback. Run
-      # the harness with unzip but no 7z on the PATH, so that path is tested
-      # on Linux too. The harness itself only needs the absolute path to Bun.
-      - name: Compatibility harness without 7z (Linux)
-        if: runner.os == 'Linux'
+      # The bundled 7-Zip alone: no unzip and no 7z on the PATH, so the
+      # executable can only use apps/7z/. On Linux the PATH is one empty
+      # folder, as in the harness's own zip-input-no-tools scenario. On
+      # Windows it holds only the system folders, because the runner has
+      # Git's unzip and Chocolatey's 7z. zip-input runs on every platform,
+      # Windows included; zip-input-no-tools is skipped, because the app has
+      # a tool. The harness itself only needs the absolute path to Bun. The
+      # step fails if the harness found any tool but the bundled one, or did
+      # not run zip-input.
+      - name: Compatibility harness with the bundled 7-Zip alone
         run: |
-          tools="$RUNNER_TEMP/unzip-only"
-          mkdir -p "$tools"
-          ln -s "$(command -v unzip)" "$tools/unzip"
-          PATH="$tools" "$RUNNER_TEMP/bun/bun" tests/compat/run.js --app "$APP" -- "./$EXE"
+          bun="$RUNNER_TEMP/bun/bun"
+          tools_path="$RUNNER_TEMP/empty"
+          mkdir -p "$tools_path"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            bun="$RUNNER_TEMP/bun/bun.exe"
+            tools_path="/c/Windows/system32:/c/Windows"
+          fi
+          ls -l "$APP/apps/7z"
+          log="$RUNNER_TEMP/harness-bundled-7zip.log"
+          PATH="$tools_path" "$bun" tests/compat/run.js --app "$APP" -- "./$EXE" | tee "$log"
 
-      # A clean Windows machine has neither tool. The runner has both (Git's
-      # unzip, Chocolatey's 7z), so run again with only the system folders on
-      # the PATH. The harness skips zip-input, whose golden file holds the
-      # tools' own messages, and still runs zip-input-no-tools (#8).
-      - name: Compatibility harness without unzip and 7z (Windows)
-        if: runner.os == 'Windows'
+          fail() { echo "::error::$1"; exit 1; }
+          tr -d '\r' < "$log" > "$log.txt"
+          grep -q '^Tools: unzip missing, 7z found (bundled: ' "$log.txt" \
+            || fail "The harness did not find the bundled 7-Zip as the only zip tool: $(grep '^Tools: ' "$log.txt")"
+          grep -q '^PASS  zip-input (' "$log.txt" || fail "zip-input did not run"
+          echo "Zip tool: the bundled 7-Zip in apps/7z. zip-input ran and passed; zip-input-no-tools was skipped."
+
+      # The same on a copy of the app without apps/, so there is no zip tool
+      # at all, as on a machine where the bundled 7-Zip was deleted. The
+      # harness skips zip-input and runs zip-input-no-tools: a zip task fails
+      # with a clear error and the server stays up. all.zip comes from the
+      # JavaScript fallback, so the harness does not compare the zip listings
+      # in the other scenarios. The step fails if the harness found a zip
+      # tool, or did not run zip-input-no-tools.
+      - name: Compatibility harness without apps/ and without zip tools
         run: |
-          bun="$RUNNER_TEMP/bun/bun.exe"
-          PATH="/c/Windows/system32:/c/Windows" "$bun" tests/compat/run.js --app "$APP" -- "./$EXE"
+          bun="$RUNNER_TEMP/bun/bun"
+          tools_path="$RUNNER_TEMP/empty"
+          mkdir -p "$tools_path"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            bun="$RUNNER_TEMP/bun/bun.exe"
+            tools_path="/c/Windows/system32:/c/Windows"
+          fi
+          app="$RUNNER_TEMP/no-apps/$(basename "$APP")"
+          mkdir -p "$RUNNER_TEMP/no-apps"
+          cp -R "$APP" "$app"
+          rm -rf "$app/apps"
+          log="$RUNNER_TEMP/harness-no-apps.log"
+          PATH="$tools_path" "$bun" tests/compat/run.js --app "$app" -- "./$EXE" | tee "$log"
+
+          fail() { echo "::error::$1"; exit 1; }
+          tr -d '\r' < "$log" > "$log.txt"
+          tools=$(grep '^Tools: ' "$log.txt")
+          [ "$tools" = "Tools: unzip missing, 7z missing" ] \
+            || fail "The harness found a zip tool without apps/: $tools"
+          grep -q '^PASS  zip-input-no-tools (' "$log.txt" || fail "zip-input-no-tools did not run"
+          echo "Zip tool: none. zip-input-no-tools ran and passed; zip-input was skipped."
 
   build:
     name: ${{ matrix.name }}
