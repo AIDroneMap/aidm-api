@@ -47,7 +47,7 @@ The reviewer never measures performance and never writes a number for speed or m
 
 1. The author opens the pull request and requests a review.
 2. The reviewer posts a review.
-3. The author addresses every block and fix: by changing the code, or by answering on the pull request why not. Pushes. Requests the next round.
+3. The author addresses every block and fix: by changing the code, or by answering on the pull request why not. A block that asks for evidence is answered with the evidence, or the author hands the pull request to a maintainer as in step 5 without waiting for the third round. An argument the reviewer has already refused is not given again for the same block: it spends a round and settles nothing. Pushes. Requests the next round.
 4. The loop ends on a round with no blocks and no fixes.
 5. After three rounds without an end, the pull request gets the label `needs-maintainer` and the author writes a summary of what is still disputed. A maintainer takes it from there.
 
