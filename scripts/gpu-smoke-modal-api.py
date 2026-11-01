@@ -23,7 +23,8 @@
 # Environment: the same as the engine's gpu-smoke-modal.py (MODAL_TOKEN_ID,
 # MODAL_TOKEN_SECRET and MODAL_ENVIRONMENT required; REGISTRY_USERNAME,
 # REGISTRY_PASSWORD, SMOKE_GPU, SMOKE_CPU, SMOKE_MEMORY, SMOKE_TIMEOUT,
-# SMOKE_OPTIONS and SMOKE_CACHE optional).
+# SMOKE_OPTIONS, SMOKE_DATASET and SMOKE_CACHE optional). SMOKE_DATASET is ci
+# (the default) or full, the two sets in smoke-test.conf.
 #
 # Everything it creates on Modal is ephemeral: one app that stops when the
 # script ends, one Sandbox, and a registry secret that exists for this run
@@ -34,6 +35,7 @@ import json
 import os
 import shlex
 import sys
+import tempfile
 import time
 
 APP_NAME = "aidm-api-gpu-smoke"
@@ -89,7 +91,16 @@ def main():
     cache = os.environ.get("SMOKE_CACHE") or os.path.expanduser("~/.cache/aidm-smoke-test")
     outputs = config["OUTPUTS"].split()
 
-    images = engine.fetch_dataset(config, cache)
+    # The engine unpacks the dataset zip into a folder of this run, after it
+    # checks the SHA-256 of the zip, and checks the image count
+    unpacked = tempfile.TemporaryDirectory(prefix="aidm-api-gpu-smoke.")
+    try:
+        dataset = engine.select_dataset(config, os.environ.get("SMOKE_DATASET") or "ci")
+        images = engine.fetch_dataset(dataset, cache, unpacked.name)
+    except RuntimeError as e:
+        unpacked.cleanup()
+        log("FAIL: %s" % e)
+        return 1
 
     import modal
 
@@ -247,6 +258,7 @@ def main():
         finally:
             sb.terminate()
             sandbox_seconds = time.monotonic() - started
+            unpacked.cleanup()
 
     gpu_line = smi.strip().splitlines()[0] if smi.strip() else "unknown"
     log("GPU: %s" % gpu_line)
