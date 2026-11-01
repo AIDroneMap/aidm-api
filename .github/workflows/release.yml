@@ -25,6 +25,9 @@
 #   gh workflow run release.yml --ref v2.5.0 -f publish=true
 # Test the build on the upstream ODX images, before the aidm release is public:
 #   gh workflow run release.yml --ref <branch> -f publish=false -f base=upstream
+# Run only the GPU test, on the GPU image of an earlier dry run. The digest is
+# in that run's digest-gpu-amd64 artifact. Nothing else is built or checked:
+#   gh workflow run release.yml --ref <branch> -f publish=false -f gpu_image=ghcr.io/aidronemap/aidm-api-ci@sha256:<digest>
 #
 # Every run, dry run or tag, also tests the GPU image on a real NVIDIA GPU
 # (the gpu-test job), like the engine's release workflow. The GitHub runners
@@ -43,6 +46,8 @@
 # 16 GiB for about 30 minutes at list prices); the job log prints an estimate.
 
 name: Release
+# Empty for every other run, so GitHub keeps its default title
+run-name: "${{ inputs.gpu_image && 'Release: GPU test only' || '' }}"
 
 on:
   push:
@@ -61,6 +66,10 @@ on:
           - aidm
           - upstream
         default: aidm
+      gpu_image:
+        description: Dry runs only. Run only the GPU test, on this GPU image from an earlier dry run (ghcr.io/aidronemap/aidm-api-ci@sha256:...). Empty runs everything.
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -88,11 +97,36 @@ jobs:
       engine-version: ${{ steps.base.outputs.engine-version }}
       cpu-base: ${{ steps.base.outputs.cpu-base }}
       gpu-base: ${{ steps.base.outputs.gpu-base }}
+      gpu-only: ${{ steps.gpu-only.outputs.gpu-only }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # The input is not echoed before it matches, so it cannot inject a workflow command
+      - name: Check the GPU-only input
+        id: gpu-only
+        env:
+          GPU_IMAGE_INPUT: ${{ inputs.gpu_image }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+          BASE_INPUT: ${{ inputs.base }}
+        run: |
+          if [ -z "$GPU_IMAGE_INPUT" ]; then
+            echo "gpu-only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] \
+            || fail "gpu_image is for dry runs started by hand only."
+          [ "$PUBLISH_INPUT" != "true" ] \
+            || fail "gpu_image is for dry runs only. Run it with publish=false."
+          [ "$BASE_INPUT" = "aidm" ] \
+            || fail "gpu_image needs base=aidm. The GPU test helpers come from the engine release in Dockerfile."
+          [[ "$GPU_IMAGE_INPUT" =~ ^ghcr\.io/aidronemap/aidm-api-ci@sha256:[0-9a-f]{64}$ ]] \
+            || fail "gpu_image must be ghcr.io/aidronemap/aidm-api-ci@sha256: and 64 lowercase hex digits, from the digest-gpu-amd64 artifact of an earlier dry run."
+          echo "GPU-only dry run on $GPU_IMAGE_INPUT: it builds no executables, no images and no manifest, and runs only the GPU test."
+          echo "gpu-only=true" >> "$GITHUB_OUTPUT"
 
       - name: Read package.json and compare it with the tag
         id: version
@@ -178,6 +212,9 @@ jobs:
   # runs before the aidm release is public.
   executables:
     name: Build executables
+    # Skipped in a GPU-only dry run. Reads the input, not check, so it still
+    # starts at once; check fails the run when the input is not valid.
+    if: ${{ !inputs.gpu_image }}
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 20
@@ -431,6 +468,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     needs: check
+    if: needs.check.outputs.gpu-only != 'true'
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
@@ -590,9 +628,16 @@ jobs:
         run: df -h /
 
   # Runs the GPU image on a real GPU on Modal. See the comment at the top.
+  # In a GPU-only dry run build is skipped, and this job runs on the gpu_image
+  # input. Its helpers still come from the engine release in Dockerfile, so
+  # that image should come from a dry run on the same engine.
   gpu-test:
     name: GPU test on Modal
     needs: [check, build]
+    if: >-
+      !cancelled()
+      && needs.check.result == 'success'
+      && (needs.build.result == 'success' || needs.check.outputs.gpu-only == 'true')
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 45
@@ -639,7 +684,7 @@ jobs:
           REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SMOKE_GPU: T4
           SMOKE_TIMEOUT: "2400"
-          GPU_IMAGE: ${{ needs.build.outputs.gpu-image }}
+          GPU_IMAGE: ${{ needs.check.outputs.gpu-only == 'true' && inputs.gpu_image || needs.build.outputs.gpu-image }}
         run: '"$RUNNER_TEMP/modal/bin/python" scripts/gpu-smoke-modal-api.py "$RUNNER_TEMP/aidm-scripts" "$GPU_IMAGE"'
 
   tag-images:
