@@ -471,7 +471,8 @@ jobs:
           persist-credentials: false
 
       # Kept outside the workspace, so it does not end up in the build context
-      # smoke-test.sh reads smoke-test.conf from its own folder, so fetch both
+      # smoke-test.sh reads its config, and from engine 0.2.0 its georeferencing
+      # check, from its own folder
       - name: Download the aidm smoke test
         if: matrix.smoke
         env:
@@ -484,6 +485,16 @@ jobs:
               exit 1
             fi
           done
+          file=check-georeferencing.py
+          if grep -qF "$file" "$RUNNER_TEMP/smoke-test.sh"; then
+            url="https://raw.githubusercontent.com/AIDroneMap/aidm/$ENGINE_REF/scripts/$file"
+            if ! curl -fsSL -o "$RUNNER_TEMP/$file" "$url"; then
+              echo "::error::Cannot download $url. The smoke test of aidm $ENGINE_REF runs scripts/$file, so the release must include it."
+              exit 1
+            fi
+          else
+            echo "The smoke test of aidm $ENGINE_REF names no $file, so it needs no georeferencing check."
+          fi
           chmod +x "$RUNNER_TEMP/smoke-test.sh"
 
       - name: Free disk space
