@@ -124,7 +124,7 @@ The [API reference](https://aidronemap.dev/api/reference/) documents every endpo
 
 The API version follows semantic versioning. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0. The API version stays at or above 2.4.0, because PyODX and WebODM read it from `GET /info` and switch to older code paths below certain versions.
 
-Any change to the API must stay compatible: new fields and endpoints may be added, existing ones are not renamed or removed.
+Any change to the API must stay compatible: new fields and endpoints may be added, and existing ones are not renamed, removed or changed in meaning unless an approved spec says so. So far there is one case: 2.7.0 removed `upstreamVersion` and `engineUpstreamVersion` from `GET /info` ([ADR 0004](docs/adr/0004-the-upstream-fields-leave-the-info-response.md)).
 
 ## Planned changes
 

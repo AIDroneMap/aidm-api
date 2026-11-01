@@ -76,11 +76,13 @@ The check that Apple's `--publish-socket` relay can open the socket cannot run i
 container run --rm --name api-socket-check \
   --publish-socket "$HOME/task-api.sock:/run/task-api.sock" \
   ghcr.io/aidronemap/aidm-api-ci@sha256:<cpu-arm64 digest from the dry run> \
-  --test --socket /run/task-api.sock
+  --socket /run/task-api.sock
 curl --unix-socket "$HOME/task-api.sock" http://localhost/info
 ```
 
 An answer with the JSON of `/info` is a pass. A refused connection or a permission error is the socket mode or the relay's user, and comes back to this spec.
+
+The command has no `--test`. The images do not ship `tests/`, so test mode stops at start with `ENOENT: no such file or directory, open '/var/www/tests/odm_options.json'`. Without it, the API in the image uses the image's engine, and `/info` answers. On 1 Nov 2026 the maintainer ran the check on a dry-run arm64 image, and `/info` answered through the relayed socket.
 
 ### 3. A task from a folder the API can read (#47, ADR 0002)
 
