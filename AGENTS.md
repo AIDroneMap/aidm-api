@@ -39,7 +39,7 @@ Follow this order for any change larger than a small fix:
 2. **Spec.** Write a short spec in `docs/specs/` with the problem, the approach, and how it will be tested.
 3. **Issues.** Split the spec into issues small enough for one pull request each.
 4. **Implement.** One issue per branch, one worktree per branch, one logical change per pull request.
-5. **Review.** Open the pull request. When it is open and its first CI run has started, run `/request-review <number>` and follow the loop in `REVIEW.md`. The loop ends on approval, or hands the pull request to a maintainer with the label `needs-maintainer`.
+5. **Review.** Open the pull request. Run `/request-review <number>` once its first CI run has started and, for a `full` pull request, once its dry run has finished. A reviewer that sees an unfinished run asks for its result, and the round is lost. A pull request that carries the commits of another pull request waits for that one to be merged. Then merge `master` into the branch, which leaves the tree unchanged, and start the review when the file list shows only the pull request's own files. An approval given earlier is dismissed as stale when the merge base moves. Follow the loop in `REVIEW.md`. The loop ends on approval, or hands the pull request to a maintainer with the label `needs-maintainer`.
 6. **Hand over.** If the change targets throughput, latency, memory or I/O, open a request in AIDroneMap/aidm-bench from its benchmark issue template once the review loop has ended on approval. Then clean up your worktree and end. A maintainer merges; you never do.
 
 ## Branches, commits and pull requests
@@ -52,6 +52,7 @@ Follow this order for any change larger than a small fix:
 - Open pull requests only against `AIDroneMap/aidm-api`.
 - Changes merged between releases go under `## Unreleased` at the top of `CHANGELOG.md`. At release time that heading becomes the version. Every entry says what changed and where the evidence is.
 - A pull request that touches `.github/` changes nothing else and lands on its own.
+- When several pull requests of one release change the same file, agree with the maintainer before you start which pull request owns each shared region and where each one inserts. Otherwise the first merge forces a rebase on the others after their dry run passed.
 
 ## Origin and reference (NodeODX and NodeODM)
 
@@ -87,8 +88,15 @@ Edit, run the unit tests and open pull requests from your own worktree. Do not b
 
 ## Tests
 
-Unit tests: `bun test tests/unit`, and the compatibility harness `bun tests/compat/run.js --app . -- bun index.js` against its golden files, both from source in test mode. CI runs both on every push to a branch and on every pull request (`.github/workflows/tests.yml`). Test mode simulates the engine with the sample outputs in `tests/`.
+Unit tests: `bun test tests/unit`, and the compatibility harness `bun tests/compat/run.js --app . -- bun index.js` against its golden files, both from source in test mode. CI runs both on every push to a branch and on every pull request (`.github/workflows/tests.yml`). Test mode simulates the engine with the sample outputs in `tests/`. Leave `/swagger.json` out of a new harness scenario. The `default` scenario records it as the hash of the served file, so every change to the API documentation breaks each golden file that holds that step.
 Full test: the release workflow's dry run, started by a maintainer with `gh workflow run release.yml --ref <branch>`: it builds the executables for each platform and runs the harness on them, builds the images on the engine image, and runs the GPU test on Modal. It is not started by pull request events.
+
+**Dry runs.** A dry run proves only what it ran.
+
+- GPU test only: `gh workflow run release.yml --ref <branch> -f publish=false -f gpu_image=ghcr.io/aidronemap/aidm-api-ci@sha256:<digest>` runs only the GPU test, on the GPU image of an earlier dry run. The digest is in that run's `digest-gpu-amd64` artifact. It builds no executables, no images and no manifest, and needs `base=aidm`, the default. It takes the GPU test helpers from the engine release in the branch's `Dockerfile`, so take the image from a dry run on the same engine. Use it to prove a fix to the GPU test without a full dry run. It never replaces the full dry run of a `full` pull request. A maintainer starts it, like the full test.
+- In `release.yml`, every job downstream of a job that a dry run skips starts its `if:` with `!cancelled()` and names the results it needs. A job without a status function gets an implicit `success()`, which is false when any upstream job was skipped: the job skips silently and the run goes green without proving anything. After every dry run, check that no job the change needs was skipped.
+- When the engine base image moves to a new engine release, check two things before the dry run. Run the CPU smoke test on a scratch machine with exactly the files the workflow downloads from the engine. Compare, between the old and the new engine tag, every function that `scripts/gpu-smoke-modal-api.py` uses from the engine's `gpu-smoke-modal.py`. A missing file or a changed function otherwise fails the dry run.
+- When a fix's new code path runs only on the next engine release, a dry run on the current base never reaches it. Its proof is a dry run of the branch that moves the base, with the fix's exact head merged in. Link that run on the fix before you request its review.
 
 **Test depth.** Every pull request declares its depth in the description, with one line of reasoning: `Test depth: unit` or `Test depth: full`. The author chooses; the reviewer checks the choice and may raise it, never lower it; a maintainer settles a disagreement. When in doubt, claim the higher one.
 
