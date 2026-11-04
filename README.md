@@ -4,7 +4,7 @@
 
 AIDM API is a REST server that accepts drone images, runs the AIDM engine on them, and returns the results. It is forked from [NodeODX](https://github.com/WebODM/NodeODX) and keeps the same API, so clients such as [WebODM](https://github.com/WebODM/WebODM), PyODX and CloudODX can connect to it without changes.
 
-> **Status: 2.7.0.** AIDM API 2.7.0 runs on Bun and ships as one executable, on top of the AIDM 0.2.0 engine. The [changelog](CHANGELOG.md) lists what changed.
+> **Status: 2.7.0.** AIDM API 2.7.0 runs on Bun and ships as one executable, on top of the AIDM 0.2.0 engine. It is released together with engine 0.2.0 and [AIDM UI](https://github.com/AIDroneMap/aidm-ui) 0.2.1, which installs the engine on an operator's computer from this API's signed release manifest. The [changelog](CHANGELOG.md) lists what changed.
 
 Documentation is at [aidronemap.dev](https://aidronemap.dev): [running the API](https://aidronemap.dev/api/running/), [configuration](https://aidronemap.dev/api/configuration/), the [API reference](https://aidronemap.dev/api/reference/) and [clients](https://aidronemap.dev/api/clients/). News is on [aidronemap.org](https://aidronemap.org).
 
@@ -16,9 +16,10 @@ AIDroneMap has three separate parts:
 | --- | --- | --- |
 | Engine | [aidm](https://github.com/AIDroneMap/aidm) | Turns images into maps and models |
 | Task API | this repository | Runs the engine on one machine and exposes it over HTTP |
+| Web interface | [aidm-ui](https://github.com/AIDroneMap/aidm-ui) | The operator's app: installs the engine, runs jobs, shows and exports the results |
 | Cloud layer | coming later | Spreads jobs across many machines and cloud providers |
 
-The engine and this API ship together in one container image. Scheduling across machines is not part of this repository.
+Each part works on its own, and the parts talk to each other only through the task API. The engine and this API ship together in one container image. Scheduling across machines is not part of this repository.
 
 ## Quick start
 
@@ -89,6 +90,10 @@ The archives bundle 7-Zip. The executable uses it to extract zip files (uploads 
 
 On Windows, only test mode works today, because there is no Windows engine: run `aidm-api.exe --test`.
 
+### Release manifest
+
+Each release also publishes `manifest.json` and its Ed25519 signature `manifest.json.sig`. The manifest names the engine images of the release by digest, with their download sizes, and AIDM UI installs the engine only from a manifest whose signature verifies. The public key is in [`.github/manifest-public-key.txt`](.github/manifest-public-key.txt), and the tag run fails before it uploads anything if the signature does not verify against it.
+
 To build an archive yourself, run `bun install --frozen-lockfile --production`, then `scripts/package.sh linux-x64 dist`. The script downloads the 7-Zip build pinned in `scripts/7zip-sha256sums.txt`.
 
 ### Keeping results
@@ -122,7 +127,7 @@ Run `docker run --rm ghcr.io/aidronemap/aidm-api:2.7.0 --help` for the full list
 
 The [API reference](https://aidronemap.dev/api/reference/) documents every endpoint. The specification files in this repository are [docs/swagger.json](docs/swagger.json) and [docs/index.adoc](docs/index.adoc). It is compatible with the NodeODM task API. [MIGRATION.md](MIGRATION.md) lists the changes from 1.x.
 
-The API version follows semantic versioning. The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0. The API version stays at or above 2.4.0, because PyODX and WebODM read it from `GET /info` and switch to older code paths below certain versions.
+The API version follows semantic versioning. API 2.7.0 ships with engine 0.2.0. The API version stays at or above 2.4.0, because PyODX and WebODM read it from `GET /info` and switch to older code paths below certain versions.
 
 Any change to the API must stay compatible: new fields and endpoints may be added, and existing ones are not renamed, removed or changed in meaning unless an approved spec says so. So far there is one case: 2.7.0 removed `upstreamVersion` and `engineUpstreamVersion` from `GET /info` ([ADR 0004](docs/adr/0004-the-upstream-fields-leave-the-info-response.md)).
 
