@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "sequence": 2008000,
+  "packageVersion": "2.8.0",
+  "engineVersion": "0.3.0",
+  "minimumUiVersion": "0.1.0",
+  "variants": {
+    "linux-amd64-cpu": {
+      "kind": "container",
+      "image": "ghcr.io/aidronemap/aidm-api",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 442635876,
+      "gpu": false,
+      "taskApiSocket": true
+    },
+    "linux-arm64-cpu": {
+      "kind": "container",
+      "image": "ghcr.io/aidronemap/aidm-api",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "size": 442635876,
+      "gpu": false,
+      "taskApiSocket": true
+    },
+    "linux-amd64-gpu": {
+      "kind": "container",
+      "image": "ghcr.io/aidronemap/aidm-api",
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "size": 442635876,
+      "gpu": true,
+      "taskApiSocket": true
+    },
+    "windows-x64": {
+      "kind": "native",
+      "url": "https://github.com/AIDroneMap/aidm-api/releases/download/v2.8.0/aidm-native-2.8.0-windows-x64.tar.gz",
+      "size": 1234,
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "gpu": false
+    },
+    "windows-x64-cuda": {
+      "kind": "native",
+      "url": "https://github.com/AIDroneMap/aidm-api/releases/download/v2.8.0/aidm-native-2.8.0-windows-x64-cuda.tar.gz",
+      "size": 5678,
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "gpu": true,
+      "minimumDriverVersion": "576.57"
+    }
+  }
+}

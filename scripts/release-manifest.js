@@ -4,6 +4,7 @@
 // Usage:
 //   bun scripts/release-manifest.js build --engine-version <version> --image <image> --digests <folder> --out <file>
 //       [--version <version>] [--package <package.json>]
+//       [--native-descriptions <folder>] [--engine-sums <file>]
 //   bun scripts/release-manifest.js sign --manifest <file> --out <file> < private-key.pem
 //   bun scripts/release-manifest.js verify --manifest <file> --signature <file> --public-key <file>
 //
@@ -16,6 +17,11 @@
 // version in package.json. minimumUiVersion always comes from package.json.
 // The file is written once, with fixed key order and formatting, and the
 // signature covers exactly those bytes.
+// --native-descriptions reads aidm-native-<version>-<variant>.json for both
+// Windows variants, with name, size and sha256 from package_native.py.
+// --engine-sums defaults to scripts/engine-sha256sums.txt. Its engine version
+// must match --engine-version and its CUDA pin supplies minimumDriverVersion.
+// Without --native-descriptions only the three container variants are written.
 //
 // sign reads a PKCS#8 PEM Ed25519 private key on standard input and writes
 // the raw 64-byte signature to --out.
@@ -45,6 +51,9 @@ const VARIANTS = [
 
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const DRIVER_VERSION = /^\d+\.\d+$/;
+const NATIVE_VARIANTS = ["windows-x64", "windows-x64-cuda"];
 // The same rule aidm-ui applies: host, then path parts, no tag, no digest, and
 // a first character that can never read as a command-line flag.
 const IMAGE = /^[a-z0-9]+(?:[._-][a-z0-9]+)*(?::\d{1,5})?(?:\/[a-z0-9]+(?:[._-][a-z0-9]+)*)+$/;
@@ -92,7 +101,8 @@ function imageSize(imageManifest) {
 
 // Builds the manifest object. Key order here is the key order in the file.
 // sizeOf(image, digest) returns the size in bytes of that image manifest.
-function buildManifest({ version, engineVersion, minimumUiVersion, image, digests, sizeOf }) {
+function buildManifest({ version, engineVersion, minimumUiVersion, image, digests, sizeOf,
+    nativeDescriptions, minimumDriverVersion }) {
     const sequence = sequenceFor(version);
     parseVersion(engineVersion, "Engine version");
     parseVersion(minimumUiVersion, "Minimum UI version");
@@ -104,6 +114,35 @@ function buildManifest({ version, engineVersion, minimumUiVersion, image, digest
         const size = sizeOf(image, digest);
         if (!Number.isSafeInteger(size) || size < 1) fail(`The size for ${v.file} is not a positive whole number`);
         variants[v.id] = { kind: "container", image, digest, size, gpu: v.gpu, taskApiSocket: true };
+    }
+    if (nativeDescriptions !== undefined) {
+        if (!nativeDescriptions || typeof nativeDescriptions !== "object" || Array.isArray(nativeDescriptions) ||
+            Object.keys(nativeDescriptions).length !== NATIVE_VARIANTS.length) {
+            fail("Native descriptions must include both Windows variants");
+        }
+        if (typeof minimumDriverVersion !== "string" || !DRIVER_VERSION.test(minimumDriverVersion)) {
+            fail("The CUDA engine pin needs minimumDriverVersion as major.minor");
+        }
+        for (const variant of NATIVE_VARIANTS) {
+            const description = nativeDescriptions[variant];
+            const name = `aidm-native-${version}-${variant}.tar.gz`;
+            if (!description || description.name !== name) fail(`The native description for ${variant} must name ${name}`);
+            if (!Number.isSafeInteger(description.size) || description.size < 1) {
+                fail(`The native description for ${variant} needs a positive whole size`);
+            }
+            if (typeof description.sha256 !== "string" || !SHA256.test(description.sha256)) {
+                fail(`The native description for ${variant} needs a SHA-256 sum of 64 lowercase hex digits`);
+            }
+            const gpu = variant === "windows-x64-cuda";
+            variants[variant] = {
+                kind: "native",
+                url: `https://github.com/AIDroneMap/aidm-api/releases/download/v${version}/${name}`,
+                size: description.size,
+                sha256: description.sha256,
+                gpu
+            };
+            if (gpu) variants[variant].minimumDriverVersion = minimumDriverVersion;
+        }
     }
     return {
         schemaVersion: SCHEMA_VERSION,
@@ -170,6 +209,39 @@ function readDigests(folder) {
     return digests;
 }
 
+function readNativeDescriptions(folder, version) {
+    const descriptions = {};
+    for (const variant of NATIVE_VARIANTS) {
+        const file = path.join(folder, `aidm-native-${version}-${variant}.json`);
+        descriptions[variant] = JSON.parse(fs.readFileSync(file, "utf8"));
+    }
+    return descriptions;
+}
+
+function readDriverVersion(file, engineVersion) {
+    const rows = fs.readFileSync(file, "utf8").split(/\r?\n/)
+        .map((line) => line.trim()).filter((line) => line && !line.startsWith("#"))
+        .map((line) => line.split(/\s+/));
+    if (rows[0]?.length !== 2 || rows[0][0] !== "version" || rows[0][1] !== engineVersion) {
+        fail("The engine sums version must match --engine-version");
+    }
+    const pins = {};
+    const filenames = new Set();
+    for (const [digest, name, variant, floor, ...extra] of rows.slice(1)) {
+        if (!SHA256.test(digest || "") || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.tar\.gz$/.test(name || "") ||
+            !NATIVE_VARIANTS.includes(variant) || pins[variant] || filenames.has(name) || extra.length ||
+            (variant === "windows-x64" ? floor !== undefined : !DRIVER_VERSION.test(floor || ""))) {
+            fail("The engine sums need valid Windows archive pins and a CUDA driver floor as major.minor");
+        }
+        pins[variant] = { minimumDriverVersion: floor };
+        filenames.add(name);
+    }
+    if (NATIVE_VARIANTS.some((variant) => !pins[variant])) {
+        fail("The engine sums must pin both Windows variants for native descriptions");
+    }
+    return pins["windows-x64-cuda"].minimumDriverVersion;
+}
+
 function options(args, names) {
     const out = {};
     for (let i = 0; i < args.length; i += 2) {
@@ -198,15 +270,23 @@ function usage() {
 async function main(argv) {
     const [command, ...rest] = argv;
     if (command === "build") {
-        const opts = options(rest, ["engine-version", "image", "digests", "out", "version", "package"]);
+        const opts = options(rest, ["engine-version", "image", "digests", "out", "version", "package",
+            "native-descriptions", "engine-sums"]);
         const pkg = JSON.parse(fs.readFileSync(opts.package || path.join(__dirname, "..", "package.json"), "utf8"));
+        const version = opts.version || pkg.version;
+        const engineVersion = need(opts, "engine-version");
+        const nativeDescriptions = opts["native-descriptions"]
+            ? readNativeDescriptions(opts["native-descriptions"], version) : undefined;
         const manifest = buildManifest({
-            version: opts.version || pkg.version,
-            engineVersion: need(opts, "engine-version"),
+            version,
+            engineVersion,
             minimumUiVersion: pkg.minimumUiVersion,
             image: need(opts, "image"),
             digests: readDigests(need(opts, "digests")),
-            sizeOf: registrySize
+            sizeOf: registrySize,
+            nativeDescriptions,
+            minimumDriverVersion: nativeDescriptions === undefined ? undefined
+                : readDriverVersion(opts["engine-sums"] || path.join(__dirname, "engine-sha256sums.txt"), engineVersion)
         });
         fs.writeFileSync(need(opts, "out"), renderManifest(manifest));
     } else if (command === "sign") {

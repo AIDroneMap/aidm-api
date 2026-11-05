@@ -14,6 +14,7 @@ The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0.
 ### Added
 
 - Native package preparation scripts pin the engine in `scripts/engine-sha256sums.txt`, download its Windows archives by SHA-256 with `scripts/get_engine.py`, and assemble the API zip and engine into a native archive with `scripts/package_native.py`. Assembly checks the engine layout and version, fixes archive metadata, writes a JSON description with the name, size and SHA-256, and refuses assets over 2 GiB. The pin stays at engine 0.2.0 with no native archives until its Windows release exists. Evidence: `tests/unit/engine-pins.test.js`, `tests/unit/get-engine.test.js` and `tests/unit/package-native.test.js` cover pin mismatches, local downloads, fixture layouts, refusals, size boundaries and identical bytes on repeat assembly (#96).
+- The release manifest can read native package descriptions and append the Windows CPU and CUDA variants with release asset addresses, sizes and SHA-256 sums. The CUDA entry reads its driver floor from the matching engine pins. Without descriptions, the three container variants are unchanged. Evidence: `tests/unit/release-manifest.test.js` checks fixed bytes with and without native entries, variant order, package fields, refusals and signature verification (#97).
 
 ## 2.7.0
 
