@@ -233,6 +233,12 @@ jobs:
               print(f"Native packages skipped: engine {version} has no pinned Windows archives.")
           PY
 
+      - name: Explain why the native start check is skipped
+        if: steps.native.outputs.available == 'false'
+        env:
+          ENGINE_VERSION: ${{ steps.base.outputs.engine-version }}
+        run: echo "Native package start check skipped because engine $ENGINE_VERSION has no pinned Windows archives."
+
   # Builds every archive once, on Linux. Does not need the base images, so it
   # runs before the aidm release is public.
   executables:
@@ -377,6 +383,182 @@ jobs:
           name: native-descriptions
           path: dist-native/*.json
           if-no-files-found: error
+          retention-days: 7
+
+  native-packages-test:
+    name: Start ${{ matrix.variant }} native package
+    needs: [check, native-packages]
+    if: >-
+      !cancelled()
+      && needs.check.result == 'success'
+      && needs.native-packages.result == 'success'
+      && needs.check.outputs.native-archives == 'true'
+    runs-on: windows-2025-vs2026
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [windows-x64, windows-x64-cuda]
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      ENGINE_VERSION: ${{ needs.check.outputs.engine-version }}
+      VARIANT: ${{ matrix.variant }}
+      ENGINE_FAILURE_LINE: ""
+    steps:
+      - name: Download native packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-packages
+          path: dist-native
+
+      - name: Check the package checksum and unpack with system tar
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = "aidm-native-$env:VERSION-$env:VARIANT"
+          $archive = "$name.tar.gz"
+          $pattern = '^([a-f0-9]{64})  ' + [regex]::Escape($archive) + '$'
+          $rows = @(Get-Content dist-native/SHA256SUMS | Where-Object { $_ -match $pattern })
+          if ($rows.Count -ne 1) { throw "Expected one checksum for $archive." }
+          $expected = [regex]::Match($rows[0], $pattern).Groups[1].Value
+          $actual = (Get-FileHash "dist-native/$archive" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -cne $expected) { throw "SHA-256 mismatch for $archive." }
+          $destination = Join-Path $env:RUNNER_TEMP native-start
+          New-Item -ItemType Directory -Path $destination | Out-Null
+          & "$env:SystemRoot/System32/tar.exe" -xzf "dist-native/$archive" -C $destination
+          if ($LASTEXITCODE -ne 0) { throw "Cannot unpack $archive." }
+          $app = Join-Path $destination $name
+          if (!(Test-Path "$app/aidm-api.exe") -or !(Test-Path "$app/engine/run.bat")) {
+            throw 'The native package is missing the API or the engine entry point.'
+          }
+          "NATIVE_APP=$app" >> $env:GITHUB_ENV
+
+      - name: Start the package, reject one image, and stop the process tree
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $logs = Join-Path $env:RUNNER_TEMP native-start-logs
+          New-Item -ItemType Directory -Path $logs | Out-Null
+          $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+          $listener.Start()
+          $port = $listener.LocalEndpoint.Port
+          $listener.Stop()
+          $token = [guid]::NewGuid().ToString('N')
+          $config = Join-Path $env:RUNNER_TEMP native-start-config.json
+          @{
+            port = $port
+            token = $token
+            host = '127.0.0.1'
+            parallelQueueProcessing = 1
+            odx_path = Join-Path $env:NATIVE_APP engine
+          } | ConvertTo-Json | Set-Content $config -Encoding utf8
+          $base = "http://127.0.0.1:$port"
+          $api = $null
+          $tracked = [System.Collections.Generic.HashSet[int]]::new()
+          function Track-ProcessTree {
+            $processes = @(Get-CimInstance Win32_Process)
+            do {
+              $added = $false
+              foreach ($process in $processes) {
+                if ($tracked.Contains([int]$process.ParentProcessId)) {
+                  if ($tracked.Add([int]$process.ProcessId)) { $added = $true }
+                }
+              }
+            } while ($added)
+          }
+          try {
+            $api = Start-Process -FilePath "$env:NATIVE_APP/aidm-api.exe" `
+              -ArgumentList @('--config', "`"$config`"") -WorkingDirectory $env:NATIVE_APP `
+              -RedirectStandardOutput "$logs/api-stdout.log" `
+              -RedirectStandardError "$logs/api-stderr.log" -PassThru
+            [void]$tracked.Add($api.Id)
+            $deadline = (Get-Date).AddSeconds(120)
+            $info = $null
+            do {
+              Track-ProcessTree
+              if ($api.HasExited) { throw "The API exited with code $($api.ExitCode)." }
+              try {
+                $info = Invoke-RestMethod "$base/info?token=$token" -TimeoutSec 5
+              } catch {
+                if ((Get-Date) -ge $deadline) { throw 'The native API did not become ready.' }
+                Start-Sleep -Seconds 1
+              }
+              if ($null -eq $info -and (Get-Date) -ge $deadline) {
+                throw 'The native API returned no info before the readiness deadline.'
+              }
+            } while ($null -eq $info)
+            $info | ConvertTo-Json -Depth 10 | Set-Content "$logs/info.log"
+            if ($info.engineVersion -cne $env:ENGINE_VERSION) {
+              throw "Expected engine $env:ENGINE_VERSION, got $($info.engineVersion)."
+            }
+            $options = Invoke-RestMethod "$base/options?token=$token" -TimeoutSec 10
+            if ($options -isnot [array] -or $options.Count -eq 0) {
+              throw 'The engine option list is not a non-empty array.'
+            }
+            $options | ConvertTo-Json -Depth 10 | Set-Content "$logs/options.log"
+            Add-Type -AssemblyName System.Drawing
+            $image = Join-Path $env:RUNNER_TEMP one-image.jpg
+            $bitmap = [System.Drawing.Bitmap]::new(32, 32)
+            try { $bitmap.Save($image, [System.Drawing.Imaging.ImageFormat]::Jpeg) }
+            finally { $bitmap.Dispose() }
+            $task = Invoke-RestMethod "$base/task/new?token=$token" -Method Post `
+              -Form @{ images = Get-Item $image; name = 'Native package start check' } -TimeoutSec 30
+            if (!$task.uuid -or $task.error) { throw "Task creation failed: $($task | ConvertTo-Json -Compress)." }
+            $deadline = (Get-Date).AddSeconds(120)
+            do {
+              Track-ProcessTree
+              if ($api.HasExited) { throw 'The API exited while the task was running.' }
+              $result = Invoke-RestMethod "$base/task/$($task.uuid)/info?token=$token" -TimeoutSec 10
+              if ($result.error) { throw "Cannot read task status: $($result.error)." }
+              if ($result.status.code -in @(30, 40, 50)) { break }
+              if ((Get-Date) -ge $deadline) { throw 'The one-image task did not finish.' }
+              Start-Sleep -Seconds 1
+            } while ($true)
+            $result | ConvertTo-Json -Depth 10 | Set-Content "$logs/task-info.log"
+            $output = Invoke-RestMethod "$base/task/$($task.uuid)/output?token=$token" -TimeoutSec 10
+            $text = $output -join "`n"
+            $text | Set-Content "$logs/engine-output.log"
+            Write-Output $text
+            if ($result.status.code -ne 30) { throw 'The engine must refuse the one-image task.' }
+            if ("$($result.status.errorMessage)`n$text" -match 'Could not start process') {
+              throw 'The API could not start the engine process.'
+            }
+            if ([string]::IsNullOrWhiteSpace($text)) { throw 'The engine wrote no task output.' }
+            if ([string]::IsNullOrWhiteSpace($env:ENGINE_FAILURE_LINE)) {
+              throw 'Read the engine refusal line from engine-output.log and pin ENGINE_FAILURE_LINE before accepting this check.'
+            }
+            if (!$text.Contains($env:ENGINE_FAILURE_LINE)) {
+              throw 'The task output does not contain the recorded engine refusal line.'
+            }
+          } finally {
+            if ($null -ne $api) {
+              Track-ProcessTree
+              if (!$api.HasExited) {
+                & taskkill.exe /PID $api.Id /T /F
+                if ($LASTEXITCODE -ne 0) { throw 'taskkill could not stop the native package.' }
+              }
+              $deadline = (Get-Date).AddSeconds(15)
+              do {
+                $remaining = @(Get-Process -Id @($tracked) -ErrorAction SilentlyContinue)
+                if ($remaining.Count -eq 0) { break }
+                if ((Get-Date) -ge $deadline) {
+                  throw "Native package processes survived taskkill: $($remaining.Id -join ', ')."
+                }
+                Start-Sleep -Milliseconds 200
+              } while ($true)
+              "Stopped process tree: $(@($tracked) -join ', ')" | Set-Content "$logs/process-tree.log"
+            }
+          }
+
+      - name: Upload native start diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-start-${{ matrix.variant }}
+          path: ${{ runner.temp }}/native-start-logs/*.log
+          if-no-files-found: ignore
           retention-days: 7
 
   # Runs each archive on its own platform. The runners have no engine, so the
@@ -842,7 +1024,7 @@ jobs:
   # never after a failure or a cancel.
   manifest:
     name: Build release manifest
-    needs: [check, build, gpu-test, tag-images, native-packages]
+    needs: [check, build, gpu-test, tag-images, native-packages, native-packages-test]
     if: >-
       !cancelled()
       && needs.check.result == 'success'
@@ -852,6 +1034,8 @@ jobs:
         || (needs.tag-images.result == 'skipped' && needs.check.outputs.publish != 'true'))
       && ((needs.native-packages.result == 'success' && needs.check.outputs.native-archives == 'true')
         || (needs.native-packages.result == 'skipped' && needs.check.outputs.native-archives == 'false'))
+      && ((needs.native-packages-test.result == 'success' && needs.check.outputs.native-archives == 'true')
+        || (needs.native-packages-test.result == 'skipped' && needs.check.outputs.native-archives == 'false'))
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -1064,7 +1248,7 @@ jobs:
 
   release:
     name: Draft release
-    needs: [check, tag-images, sign-manifest, executables-test, native-packages]
+    needs: [check, tag-images, sign-manifest, executables-test, native-packages, native-packages-test]
     if: >-
       !cancelled()
       && github.event_name == 'push'
@@ -1074,6 +1258,8 @@ jobs:
       && needs.executables-test.result == 'success'
       && ((needs.native-packages.result == 'success' && needs.check.outputs.native-archives == 'true')
         || (needs.native-packages.result == 'skipped' && needs.check.outputs.native-archives == 'false'))
+      && ((needs.native-packages-test.result == 'success' && needs.check.outputs.native-archives == 'true')
+        || (needs.native-packages-test.result == 'skipped' && needs.check.outputs.native-archives == 'false'))
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 10
