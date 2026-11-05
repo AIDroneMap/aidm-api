@@ -50,6 +50,7 @@ function manifestText() {
 }
 
 test('sequence is major x 1,000,000 + minor x 1,000 + patch', () => {
+    expect(lib.sequenceFor('2.8.0')).toBe(2008000);
     expect(lib.sequenceFor('2.7.0')).toBe(2007000);
     expect(lib.sequenceFor('2.6.1')).toBe(2006001);
     expect(lib.sequenceFor('0.0.1')).toBe(1);
@@ -186,6 +187,169 @@ function digestFolder() {
     for (const [name, digest] of Object.entries(DIGESTS)) fs.writeFileSync(path.join(dir, name), digest + '\n');
     return dir;
 }
+
+const nativeDescriptions = {
+    'windows-x64': { name: 'aidm-native-2.8.0-windows-x64.tar.gz', size: 1234, sha256: 'd'.repeat(64) },
+    'windows-x64-cuda': { name: 'aidm-native-2.8.0-windows-x64-cuda.tar.gz', size: 5678, sha256: 'e'.repeat(64) }
+};
+
+const nativeArgs = {
+    ...baseArgs,
+    version: '2.8.0',
+    engineVersion: '0.3.0',
+    nativeDescriptions,
+    minimumDriverVersion: '576.57'
+};
+
+function nativeInputs() {
+    const folder = tmp();
+    for (const description of Object.values(nativeDescriptions)) {
+        fs.writeFileSync(path.join(folder, description.name.replace(/\.tar\.gz$/, '.json')), JSON.stringify(description));
+    }
+    const sums = path.join(folder, 'engine-sums.txt');
+    fs.writeFileSync(sums, '# Fixture engine archives\nversion 0.3.0\n' +
+        `${'1'.repeat(64)} aidm-0.3.0-windows-x64.tar.gz windows-x64\n` +
+        `${'2'.repeat(64)} aidm-0.3.0-windows-x64-cuda.tar.gz windows-x64-cuda 576.57\n`);
+    return { folder, sums };
+}
+
+function nativeCommand(inputs, out) {
+    return ['build', '--version', '2.8.0', '--engine-version', '0.3.0', '--image', IMAGE,
+        '--digests', digestFolder(), '--native-descriptions', inputs.folder, '--engine-sums', inputs.sums, '--out', out];
+}
+
+test('native entries follow the containers and carry only the CUDA driver floor', () => {
+    const manifest = lib.buildManifest(nativeArgs);
+    expect(manifest.sequence).toBe(2008000);
+    expect(manifest.minimumUiVersion).toBe(JSON.parse(fs.readFileSync(path.join(root, 'package.json'))).minimumUiVersion);
+    expect(Object.keys(manifest.variants)).toEqual([
+        'linux-amd64-cpu', 'linux-arm64-cpu', 'linux-amd64-gpu', 'windows-x64', 'windows-x64-cuda'
+    ]);
+    for (const variant of ['windows-x64', 'windows-x64-cuda']) {
+        const { name, size, sha256 } = nativeDescriptions[variant];
+        const expected = {
+            kind: 'native', url: `https://github.com/AIDroneMap/aidm-api/releases/download/v2.8.0/${name}`,
+            size, sha256, gpu: variant === 'windows-x64-cuda'
+        };
+        if (expected.gpu) expected.minimumDriverVersion = '576.57';
+        expect(manifest.variants[variant]).toEqual(expected);
+        expect(Object.keys(manifest.variants[variant])).toEqual(Object.keys(expected));
+    }
+});
+
+test('manifest bytes match stored files with and without native descriptions', () => {
+    for (const native of [false, true]) {
+        const args = native ? nativeArgs : { ...nativeArgs, nativeDescriptions: undefined };
+        const expected = fs.readFileSync(path.join(__dirname, 'fixtures', `release-manifest-${native ? 'native' : 'containers'}.json`));
+        const bytes = Buffer.from(lib.renderManifest(lib.buildManifest(args)));
+        expect(bytes.equals(expected)).toBe(true);
+        expect(Buffer.from(lib.renderManifest(lib.buildManifest(args))).equals(expected)).toBe(true);
+    }
+});
+
+test('native descriptions refuse missing sums, invalid sizes and wrong archive names', () => {
+    for (const variant of Object.keys(nativeDescriptions)) {
+        for (const change of [
+            { sha256: undefined }, { sha256: 'a'.repeat(63) }, { sha256: 'A'.repeat(64) },
+            { size: 0 }, { size: -1 }, { size: 1.5 }, { size: '1234' }, { size: Number.MAX_SAFE_INTEGER + 1 },
+            { name: '../archive.tar.gz' }, { name: nativeDescriptions[variant].name.replace('2.8.0', '2.7.0') }
+        ]) {
+            expect(() => lib.buildManifest({ ...nativeArgs, nativeDescriptions: {
+                ...nativeDescriptions, [variant]: { ...nativeDescriptions[variant], ...change }
+            } })).toThrow();
+        }
+    }
+    for (const descriptions of [{}, { 'windows-x64': nativeDescriptions['windows-x64'] }]) {
+        expect(() => lib.buildManifest({ ...nativeArgs, nativeDescriptions: descriptions })).toThrow();
+    }
+    for (const floor of [undefined, 576.57, '576', '576.57.1', 'invalid']) {
+        expect(() => lib.buildManifest({ ...nativeArgs, minimumDriverVersion: floor })).toThrow();
+    }
+});
+
+test('command line: native descriptions and engine sums produce signed exact bytes', async () => {
+    const inputs = nativeInputs();
+    const out = path.join(inputs.folder, 'manifest.json');
+    const result = run(nativeCommand(inputs, out), { path: fakeDocker(`cat "${fixture}"`) });
+    expect(result.code).toBe(0);
+    const bytes = fs.readFileSync(out);
+    expect(bytes.equals(fs.readFileSync(path.join(__dirname, 'fixtures', 'release-manifest-native.json')))).toBe(true);
+    const { pem, publicKey } = keyPair();
+    const signature = await lib.signBytes(bytes, pem);
+    expect(await lib.verifyBytes(bytes, signature, publicKey)).toBe(true);
+    const altered = Buffer.from(bytes.toString().replace('576.57', '577.00'));
+    expect(await lib.verifyBytes(altered, signature, publicKey)).toBe(false);
+});
+
+test('command line: invalid native descriptions leave no manifest', () => {
+    for (const change of [{ sha256: undefined }, { name: 'wrong.tar.gz' }]) {
+        const inputs = nativeInputs();
+        fs.writeFileSync(path.join(inputs.folder, 'aidm-native-2.8.0-windows-x64.json'),
+            JSON.stringify({ ...nativeDescriptions['windows-x64'], ...change }));
+        const out = path.join(inputs.folder, 'manifest.json');
+        const result = run(nativeCommand(inputs, out), { path: fakeDocker(`cat "${fixture}"`) });
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('windows-x64');
+        expect(fs.existsSync(out)).toBe(false);
+    }
+    const inputs = nativeInputs();
+    fs.rmSync(path.join(inputs.folder, 'aidm-native-2.8.0-windows-x64-cuda.json'));
+    const out = path.join(inputs.folder, 'manifest.json');
+    expect(run(nativeCommand(inputs, out), { path: fakeDocker(`cat "${fixture}"`) }).code).toBe(1);
+    expect(fs.existsSync(out)).toBe(false);
+});
+
+test('command line: native entries require matching engine pins and a CUDA driver floor', () => {
+    for (const change of [
+        () => '',
+        (text) => text.replace('version 0.3.0', 'version 0.2.0'),
+        (text) => text.replace(' 576.57', ''),
+        (text) => text.replace(' 576.57', ' 576'),
+        (text) => text.replace(' 576.57', ' 576.57.1'),
+        (text) => text.replace(' windows-x64\n', ' windows-x64 576.57\n'),
+        (text) => text.replace('1'.repeat(64), 'g'.repeat(64)),
+        (text) => text.replace('aidm-0.3.0-windows-x64.tar.gz', '../engine.tar.gz'),
+        (text) => text.replace('windows-x64-cuda 576.57', 'unsupported 576.57'),
+        (text) => text + text.split('\n')[2] + '\n',
+        (text) => text.replace('aidm-0.3.0-windows-x64-cuda.tar.gz', 'aidm-0.3.0-windows-x64.tar.gz'),
+        (text) => text.replace(' 576.57', ' 576.57 extra'),
+        (text) => text.split('\n').slice(0, 3).join('\n') + '\n',
+        () => 'version 0.3.0\n'
+    ]) {
+        const inputs = nativeInputs();
+        fs.writeFileSync(inputs.sums, change(fs.readFileSync(inputs.sums, 'utf8')));
+        const out = path.join(inputs.folder, 'manifest.json');
+        const result = run(nativeCommand(inputs, out), { path: fakeDocker(`cat "${fixture}"`) });
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('engine sums');
+        expect(fs.existsSync(out)).toBe(false);
+    }
+});
+
+test('command line: the driver floor comes from engine sums, not descriptions', () => {
+    const inputs = nativeInputs();
+    fs.writeFileSync(inputs.sums, fs.readFileSync(inputs.sums, 'utf8').replace('576.57', '580.01'));
+    const description = path.join(inputs.folder, 'aidm-native-2.8.0-windows-x64-cuda.json');
+    fs.writeFileSync(description, JSON.stringify({ ...nativeDescriptions['windows-x64-cuda'], minimumDriverVersion: '999.99' }));
+    const out = path.join(inputs.folder, 'manifest.json');
+    expect(run(nativeCommand(inputs, out), { path: fakeDocker(`cat "${fixture}"`) }).code).toBe(0);
+    const manifest = JSON.parse(fs.readFileSync(out));
+    expect(manifest.variants['windows-x64-cuda'].minimumDriverVersion).toBe('580.01');
+    expect(manifest.variants['windows-x64'].minimumDriverVersion).toBeUndefined();
+});
+
+test('command line: native descriptions use the pinned engine sums by default', () => {
+    const inputs = nativeInputs();
+    const out = path.join(inputs.folder, 'manifest.json');
+    const args = nativeCommand(inputs, out);
+    args.splice(args.indexOf('--engine-sums'), 2);
+    const pinnedVersion = fs.readFileSync(path.join(root, 'scripts/engine-sha256sums.txt'), 'utf8').match(/^version (\S+)$/m)[1];
+    args[args.indexOf('--engine-version') + 1] = pinnedVersion === '0.3.0' ? '0.2.0' : '0.3.0';
+    const result = run(args, { path: fakeDocker(`cat "${fixture}"`) });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('engine sums');
+    expect(fs.existsSync(out)).toBe(false);
+});
 
 test('command line: build, sign and verify end to end', () => {
     const dir = tmp();
