@@ -111,6 +111,7 @@ Settings are passed as command-line flags after the image name, or in a JSON fil
 | Flag | Purpose |
 | --- | --- |
 | `--port` | Port to listen on (default 3000) |
+| `--host` | Address to listen on, for the port and the progress receiver, for example `127.0.0.1` to accept connections from this machine only. Config key `host`. Without it, every interface. The engine sends progress to 127.0.0.1, so a host other than 127.0.0.1 or 0.0.0.0 gets no progress |
 | `--socket` | Also listen on this Unix socket path, created with mode 0600. Config key `socket`. Not on Windows |
 | `--token` | Require this token on every request |
 | `--max_images` | Reject tasks with more images than this |

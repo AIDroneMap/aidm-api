@@ -42,7 +42,7 @@ class TaskManager{
         this.dumping = false; // A write of the task list is running
         this.nextDump = null; // Callbacks of the write that follows it, when one is due
         
-        const progressReceiver = new ProgressReceiver();
+        const progressReceiver = new ProgressReceiver(config.host);
         progressReceiver.addListener(this.onProgressUpdate.bind(this));
 
         async.series([

@@ -19,8 +19,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 const logger = require('./logger');
 const dgram = require('dgram');
 
+// The engine sends its progress updates to this port on 127.0.0.1
+const PROGRESS_PORT = 6367;
+
 module.exports = class ProgressReceiver{
-    constructor(){
+    // An empty host binds every interface. The port is an argument for the tests.
+    constructor(host, port = PROGRESS_PORT){
         const server = dgram.createSocket({type: 'udp4', reuseAddr: true});
         this.callbacks = [];
 
@@ -49,7 +53,8 @@ module.exports = class ProgressReceiver{
             logger.info(`Listening on ${address.address}:${address.port} UDP for progress updates`);
         });
 
-        server.bind(6367);
+        if (host) server.bind(port, host);
+        else server.bind(port);
     }
 
     addListener(callback){

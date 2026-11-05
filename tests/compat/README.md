@@ -54,6 +54,8 @@ Test images and zip files are generated at run time from seeded random bytes. No
 | Scenario | Flags | What it covers |
 | --- | --- | --- |
 | `default` | none | All routes, success and error cases: static files, `/info`, `/options`, auth stubs, `/task/new` (options, outputs, `set-uuid`, GCP file, errors, `zipurl` failures), chunked upload (`init`, `upload`, `commit`), task info and output, `all.zip` download, cancel, restart, remove (urlencoded and JSON bodies), malformed JSON |
+| `host` | `--host 127.0.0.1` | Every step of `default` but `/swagger.json`, with the API bound to loopback. Each step must also answer as the step of the same name in `golden/default.json`. The server output must name 127.0.0.1 for the port and for the progress receiver. |
+| `host-refusal` | `--host 192.0.2.1` | A host this machine does not have: the start must fail with an error that names the address and the port, on every platform. No request is sent and there is no golden file. |
 | `socket` | `--socket <copy>/api.sock` | Every request through the task API socket: static files, `/info`, `/options`, `/task/new`, task info and output, `all.zip` download, chunked upload, cancel, restart, remove. Each step must also answer as the step of the same name in `golden/default.json`. On Windows the harness checks instead that the start fails with an error saying the option is not supported there, and sends no request. |
 | `socket-token` | `--token compat-secret --socket <copy>/api.sock` | A request without the token through the socket is refused as in `token`. On Windows, the same refusal check as `socket`. |
 | `zip-input` | none | `seed.zip` upload, `zipurl` success and 404. Needs `unzip` or `7z`. |
@@ -67,7 +69,7 @@ Test images and zip files are generated at run time from seeded random bytes. No
 
 Each golden file is `golden/<scenario>.json`: an array of `{ step, request, response }`. A response has `status`, a few headers and `body`.
 
-The `socket` scenarios are compared twice: with their own golden file, and step by step with the step of the same name in `golden/default.json` or `golden/token.json`. The second comparison ignores the numbers of `<uuid-n>`, because the scenarios create fewer tasks. With `--update`, a scenario that fails the second comparison writes no golden file.
+The `host` and `socket` scenarios are compared twice: with their own golden file, and step by step with the step of the same name in `golden/default.json` or `golden/token.json`. The second comparison ignores the numbers of `<uuid-n>`, because the scenarios create fewer tasks. With `--update`, a scenario that fails the second comparison writes no golden file.
 
 In the `webhook` scenario the "request" of the hook steps is what the API sent to the hook server, and the "response" is what the hook server answered. The harness waits for the hook calls (up to 10 s) and then 1.5 s more to count extra calls. The API retries a failed hook after `attempt * 5000` ms, so the first retry is immediate.
 

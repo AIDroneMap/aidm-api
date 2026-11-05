@@ -555,10 +555,12 @@ function startServer(command, copyDir, port, flags, noTools) {
         env = envWithoutTools();
     }
     const args = full.slice(1).concat(['--test', '--port', String(port)], flags);
-    const server = { lines: [], dumpErrors: [], exited: false, exitInfo: null, exitCode: null, closed: false, child: null };
+    const server = { lines: [], firstLines: [], dumpErrors: [], exited: false, exitInfo: null, exitCode: null, closed: false, child: null };
     const keep = chunk => {
         String(chunk).split(/\r?\n/).forEach(l => {
             if (l.length) server.lines.push(l);
+            // The startup lines, which a long scenario pushes out of the last lines
+            if (l.length && server.firstLines.length < 100) server.firstLines.push(l);
             // Kept apart from the last lines, which a long scenario pushes out
             if (l.includes('Could not dump tasks')) server.dumpErrors.push(l);
         });
@@ -620,11 +622,16 @@ async function waitReady(server, target) {
 const SOCKET_REFUSAL = 'not supported on Windows';
 
 async function checkSocketRefusal(server) {
+    await checkRefusal(server, '--socket on Windows', SOCKET_REFUSAL);
+}
+
+// The start must fail, with an error that holds the text
+async function checkRefusal(server, what, text) {
     const closed = await waitFor(() => server.closed || (!server.child && server.exited), SERVER_READY_TIMEOUT, 100);
-    if (!closed) throw new Error('Server did not refuse --socket within ' + SERVER_READY_TIMEOUT / 1000 + ' s');
-    if (server.exitCode === 0) throw new Error('Server exited with code 0 after --socket on Windows');
-    if (!server.lines.some(l => l.indexOf(SOCKET_REFUSAL) !== -1)) {
-        throw new Error('Server output does not say "' + SOCKET_REFUSAL + '"');
+    if (!closed) throw new Error('Server did not refuse ' + what + ' within ' + SERVER_READY_TIMEOUT / 1000 + ' s');
+    if (server.exitCode === 0) throw new Error('Server exited with code 0 after ' + what);
+    if (!server.lines.some(l => l.indexOf(text) !== -1)) {
+        throw new Error('Server output does not say "' + text + '"');
     }
 }
 
@@ -763,13 +770,16 @@ const taskPath = (uuid, suffix) => '/task/' + uuid + suffix;
 
 const scenarios = [];
 
-scenarios.push({
+// `host` replays these steps without /swagger.json
+const defaultScenario = {
     name: 'default',
     flags: () => [],
-    run: async function (c) {
+    run: async function (c, opts) {
+        const withSwagger = !(opts && opts.withoutSwagger);
+
         // Static files and documentation
         await c.get('static index page', '/');
-        await c.get('swagger.json', '/swagger.json', { hashOnly: true });
+        if (withSwagger) await c.get('swagger.json', '/swagger.json', { hashOnly: true });
         await c.get('static file not found', '/does-not-exist.html');
         await c.call('cors preflight', {
             method: 'OPTIONS',
@@ -954,6 +964,26 @@ scenarios.push({
         await c.get('task list after remove', '/task/list');
         await c.get('info at the end', '/info');
     }
+};
+scenarios.push(defaultScenario);
+
+// The API bound to loopback with --host. Each step of `default` but
+// /swagger.json, which must answer as it does there. The server output must
+// name the host for the port and for the progress receiver.
+scenarios.push({
+    name: 'host',
+    sameStepsAs: 'default',
+    flags: () => ['--host', '127.0.0.1'],
+    logLines: port => ['Server has started on 127.0.0.1:' + port, 'Listening on 127.0.0.1:6367 UDP for progress updates'],
+    run: c => defaultScenario.run(c, { withoutSwagger: true })
+});
+
+// A host this machine does not have fails the start, on every platform.
+// 192.0.2.1 is a documentation address that no machine is given (RFC 5737).
+scenarios.push({
+    name: 'host-refusal',
+    flags: () => ['--host', '192.0.2.1'],
+    refuses: port => 'Cannot listen on 192.0.2.1:' + port + ': 192.0.2.1 is not an address of this machine'
 });
 
 // Every request goes through the task API socket. Each step repeats the step
@@ -1373,6 +1403,12 @@ async function runScenario(sc, opts, env) {
             result.note = 'Windows: the start with --socket failed with the expected error, no request sent';
             return result;
         }
+        if (sc.refuses) {
+            server = startServer(opts.command, copyDir, port, sc.flags(env), false);
+            await checkRefusal(server, sc.flags(env).join(' '), sc.refuses(port));
+            result.note = 'the start failed with the expected error, no request sent';
+            return result;
+        }
         const flags = sc.flags(env).concat(socketPath ? ['--socket', socketPath] : []);
         server = startServer(opts.command, copyDir, port, flags, !!sc.noTools);
         const target = socketPath || port;
@@ -1380,6 +1416,12 @@ async function runScenario(sc, opts, env) {
         const ctx = makeContext(env, port, copyDir, target);
         await sc.run(ctx);
         result.steps = ctx.entries.length;
+
+        if (sc.logLines) {
+            sc.logLines(port).forEach(line => {
+                if (!server.firstLines.concat(server.lines).some(l => l.indexOf(line) !== -1)) result.problems.push('Server output does not say "' + line + '"');
+            });
+        }
 
         // The API writes its task list on every change. A failed write is
         // only logged, so the harness reads the log to see it, on every

@@ -44,6 +44,7 @@ const auth = require('./libs/auth/factory').fromConfig(config);
 const authCheck = auth.getMiddleware();
 const taskNew = require('./libs/taskNew');
 const taskApiSocket = require('./libs/taskApiSocket');
+const listenHost = require('./libs/listenHost');
 
 app.use(cors())
 app.options('*', cors())
@@ -938,6 +939,7 @@ if (!config.hasUnzip && !config.has7z) logger.warn("Neither unzip nor 7z is inst
 
 let commands = [
     cb => cb(config.socket ? taskApiSocket.checkOption(config.socket, process.platform) : null),
+    cb => cb(listenHost.checkOption(config.host)),
     cb => odmInfo.initialize(cb),
     cb => {
         async.parallel({
@@ -955,14 +957,23 @@ let commands = [
         taskManager = TaskManager.singleton();
     },
     cb => {
+        const where = port => config.host ? listenHost.hostPort(config.host, port) : 'port ' + String(port);
+
+        // The error keeps its code, so the search of "auto" can tell a port in use
         const startServer = (port, cb) => {
-            server = app.listen(parseInt(port), (err) => {
-                if (!err) logger.info('Server has started on port ' + String(port));
-                cb(err);
+            const listening = () => {
+                logger.info('Server has started on ' + where(port));
+                cb();
+            };
+            server = config.host ? app.listen(parseInt(port), config.host, listening) : app.listen(parseInt(port), listening);
+            server.on("error", err => {
+                const e = new Error(`Cannot listen on ${where(port)}: ${err.message}`);
+                e.code = err.code;
+                cb(e);
             });
-            server.on("error", cb);
         };
 
+        // Only a port in use moves the search on; any other error fails the start
         const tryStartServer = (port, cb) => {
             startServer(port, (err) => {
                 if (err && err.code === 'EADDRINUSE' && port < 5000){
@@ -971,13 +982,25 @@ let commands = [
             });
         };
 
+        let firstPort, start;
         if (Number.isInteger(parseInt(config.port))){
-            startServer(config.port, cb);
+            firstPort = config.port;
+            start = () => startServer(config.port, cb);
         }else if (config.port === "auto"){
-            tryStartServer(3000, cb);
+            firstPort = 3000;
+            start = () => tryStartServer(3000, cb);
         }else{
-            cb(new Error(`Invalid port: ${config.port}`));
+            return cb(new Error(`Invalid port: ${config.port}`));
         }
+
+        // On Windows an address this machine does not have fails with
+        // EADDRINUSE too, which would send "auto" through every port. The
+        // address is checked once before the first port.
+        if (!config.host) return start();
+        listenHost.checkAddress(config.host, err => {
+            if (err) return cb(new Error(`Cannot listen on ${where(firstPort)}: ${config.host} is not an address of this machine`));
+            start();
+        });
     },
     cb => {
         if (!config.socket) return cb();
