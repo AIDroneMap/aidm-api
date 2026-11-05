@@ -42,6 +42,7 @@ For each scenario the harness:
 1. Copies `--app` into a fresh temporary directory. It skips `.git`, and at the top level `node_modules`, `tmp`, `data` and `.worktrees`. It copies `tests/data` as an empty folder with only its `.gitignore`. If `<dir>/node_modules` exists it is linked into the copy (a `junction` on Windows). It creates an empty `tmp/`. The source tree is never changed.
 2. Starts the command in that copy and polls `GET /info` until the server answers (30 s limit). The `socket` scenarios add `--socket <copy>/api.sock`, and every request, this one included, goes through the socket.
 3. Runs the steps in a fixed order and waits for every task to reach a final status (30, 40 or 50) before any step that depends on it.
+   A scenario also fails when the server logs `Could not dump tasks`: the API writes its task list on every change and only logs a failed write, so the log is where a write that fails on one platform shows.
 4. Stops the server and deletes the copy. Scenarios run one after another because the API always binds UDP port 6367.
 
 The harness also starts two small servers on 127.0.0.1: one serves test zip files (for `zipurl`), one receives webhook calls.

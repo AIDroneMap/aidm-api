@@ -29,6 +29,7 @@ const Directories = require('./Directories');
 const ProgressReceiver = require('./ProgressReceiver');
 
 const TASKS_DUMP_FILE = path.join(Directories.data, "tasks.json");
+const TASKS_DUMP_TEMP_FILE = TASKS_DUMP_FILE + ".tmp";
 const CLEANUP_TASKS_IF_OLDER_THAN = 1000 * 60 * config.cleanupTasksAfter; // minutes
 const CLEANUP_STALE_UPLOADS_AFTER = 1000 * 60 * config.cleanupUploadsAfter; // minutes
 
@@ -38,6 +39,8 @@ class TaskManager{
     constructor(done){
         this.tasks = {};
         this.runningQueue = [];
+        this.dumping = false; // A write of the task list is running
+        this.nextDump = null; // Callbacks of the write that follows it, when one is due
         
         const progressReceiver = new ProgressReceiver(config.host);
         progressReceiver.addListener(this.onProgressUpdate.bind(this));
@@ -167,6 +170,7 @@ class TaskManager{
                         if (err) done(err);
                         else{
                             this.tasks[task.uuid] = task;
+                            this.watch(task);
                             done();
                         }
                     });
@@ -225,8 +229,15 @@ class TaskManager{
     addNew(task){
         assert(task.constructor.name === "Task", "Must be a Task object");
         this.tasks[task.uuid] = task;
+        this.watch(task);
+        this.dumpTaskList();
 
         this.processNextTask();
+    }
+
+    // Writes the task list whenever the task's status code changes
+    watch(task){
+        task.onStatusChange.push(() => this.dumpTaskList());
     }
 
     // Stops the execution of a task
@@ -256,6 +267,7 @@ class TaskManager{
                     task.cleanup(err => {
                         if (!err){
                             delete(this.tasks[uuid]);
+                            this.dumpTaskList();
                             this.processNextTask();
                             cb(null);
                         }else cb(err);
@@ -272,7 +284,12 @@ class TaskManager{
         let task = this.find(uuid, cb);
         if (task){
             task.restart(options, err => {
-                if (!err) this.processNextTask();
+                if (!err){
+                    // The restart also resets dates and options
+                    // after the status change was written
+                    this.dumpTaskList();
+                    this.processNextTask();
+                }
                 cb(err);
             });
         }
@@ -285,19 +302,48 @@ class TaskManager{
         return task;
     }
 
-    // Serializes the list of tasks and saves it
-    // to disk
+    // Serializes the list of tasks and saves it to disk. The list goes
+    // to a temporary file that is then renamed over the list file, so a
+    // kill at any moment leaves the previous complete file or the new one.
+    // One write runs at a time: a call during a write starts one more
+    // write when it ends, and its callback waits for that write.
+    // A write error is logged, and done is called without it.
     dumpTaskList(done){
+        if (this.dumping){
+            if (!this.nextDump) this.nextDump = [];
+            if (done !== undefined) this.nextDump.push(done);
+            return;
+        }
+        this.dumping = true;
+
         let output = [];
 
         for (let uuid in this.tasks){
             output.push(this.tasks[uuid].serialize());
         }
 
-        fs.writeFile(TASKS_DUMP_FILE, JSON.stringify(output), err => {
+        const finished = err => {
             if (err) logger.error(`Could not dump tasks: ${err.message}`);
             else logger.debug("Dumped tasks list.");
+
+            this.dumping = false;
+            const next = this.nextDump;
+            this.nextDump = null;
+            if (next) this.dumpTaskList(() => next.forEach(cb => cb()));
+
             if (done !== undefined) done();
+        };
+
+        const failed = err => {
+            fs.rm(TASKS_DUMP_TEMP_FILE, { force: true }, () => finished(err));
+        };
+
+        fs.writeFile(TASKS_DUMP_TEMP_FILE, JSON.stringify(output), err => {
+            if (err) failed(err);
+            else fs.rename(TASKS_DUMP_TEMP_FILE, TASKS_DUMP_FILE, err => {
+                if (err) failed(err);
+                else finished();
+            });
         });
     }
 

@@ -555,9 +555,15 @@ function startServer(command, copyDir, port, flags, noTools) {
         env = envWithoutTools();
     }
     const args = full.slice(1).concat(['--test', '--port', String(port)], flags);
-    const server = { lines: [], exited: false, exitInfo: null, exitCode: null, closed: false, child: null };
+    const server = { lines: [], firstLines: [], dumpErrors: [], exited: false, exitInfo: null, exitCode: null, closed: false, child: null };
     const keep = chunk => {
-        String(chunk).split(/\r?\n/).forEach(l => { if (l.length) server.lines.push(l); });
+        String(chunk).split(/\r?\n/).forEach(l => {
+            if (l.length) server.lines.push(l);
+            // The startup lines, which a long scenario pushes out of the last lines
+            if (l.length && server.firstLines.length < 100) server.firstLines.push(l);
+            // Kept apart from the last lines, which a long scenario pushes out
+            if (l.includes('Could not dump tasks')) server.dumpErrors.push(l);
+        });
         if (server.lines.length > 500) server.lines.splice(0, server.lines.length - 500);
     };
     let child;
@@ -1413,9 +1419,14 @@ async function runScenario(sc, opts, env) {
 
         if (sc.logLines) {
             sc.logLines(port).forEach(line => {
-                if (!server.lines.some(l => l.indexOf(line) !== -1)) result.problems.push('Server output does not say "' + line + '"');
+                if (!server.firstLines.concat(server.lines).some(l => l.indexOf(line) !== -1)) result.problems.push('Server output does not say "' + line + '"');
             });
         }
+
+        // The API writes its task list on every change. A failed write is
+        // only logged, so the harness reads the log to see it, on every
+        // platform the harness runs on.
+        server.dumpErrors.forEach(l => result.problems.push('The API could not write its task list: ' + l));
 
         if (sc.sameStepsAs) {
             const same = compareSameSteps(JSON.parse(JSON.stringify(ctx.entries)), sc.sameStepsAs, !env.tools.sevenZ);

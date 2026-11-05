@@ -62,6 +62,7 @@ module.exports = class Task{
         this.imagesCountEstimate = imagesCountEstimate;
         this.initialized = false;
         this.onInitialize = []; // Events to trigger on initialization
+        this.onStatusChange = []; // Events to trigger when the status code changes
     }
 
     initialize(done, additionalSteps = []){
@@ -214,11 +215,15 @@ module.exports = class Task{
     }
 
     setStatus(code, extra){
+        const previous = this.status ? this.status.code : undefined;
         this.status = {
             code: code
         };
         for (let k in extra){
             this.status[k] = extra[k];
+        }
+        if (previous !== undefined && previous !== code && this.onStatusChange){
+            this.onStatusChange.forEach(evt => evt(this));
         }
     }
 
