@@ -83,6 +83,14 @@ Images sent in the body of the request.
 The Unix socket path the API listens on next to its port, for a client on the same machine or a container relay.
 _Avoid_: Pipe, IPC endpoint
 
+**Host**:
+The one address the API binds its port and its progress receiver to, set with `--host` or the `host` key. Without it the API listens on every interface.
+_Avoid_: Bind address, interface (for the address)
+
+**Progress receiver**:
+The UDP listener on port 6367 that takes the progress updates the engine sends to 127.0.0.1.
+_Avoid_: Progress server
+
 **Capability**:
 A key with the value true in the info response that says the API has an optional feature. When the key is absent, the feature is not available.
 

@@ -759,13 +759,16 @@ const taskPath = (uuid, suffix) => '/task/' + uuid + suffix;
 
 const scenarios = [];
 
-scenarios.push({
+// `host` replays these steps without /swagger.json
+const defaultScenario = {
     name: 'default',
     flags: () => [],
-    run: async function (c) {
+    run: async function (c, opts) {
+        const withSwagger = !(opts && opts.withoutSwagger);
+
         // Static files and documentation
         await c.get('static index page', '/');
-        await c.get('swagger.json', '/swagger.json', { hashOnly: true });
+        if (withSwagger) await c.get('swagger.json', '/swagger.json', { hashOnly: true });
         await c.get('static file not found', '/does-not-exist.html');
         await c.call('cors preflight', {
             method: 'OPTIONS',
@@ -950,6 +953,18 @@ scenarios.push({
         await c.get('task list after remove', '/task/list');
         await c.get('info at the end', '/info');
     }
+};
+scenarios.push(defaultScenario);
+
+// The API bound to loopback with --host. Each step of `default` but
+// /swagger.json, which must answer as it does there. The server output must
+// name the host for the port and for the progress receiver.
+scenarios.push({
+    name: 'host',
+    sameStepsAs: 'default',
+    flags: () => ['--host', '127.0.0.1'],
+    logLines: port => ['Server has started on 127.0.0.1:' + port, 'Listening on 127.0.0.1:6367 UDP for progress updates'],
+    run: c => defaultScenario.run(c, { withoutSwagger: true })
 });
 
 // Every request goes through the task API socket. Each step repeats the step
@@ -1376,6 +1391,12 @@ async function runScenario(sc, opts, env) {
         const ctx = makeContext(env, port, copyDir, target);
         await sc.run(ctx);
         result.steps = ctx.entries.length;
+
+        if (sc.logLines) {
+            sc.logLines(port).forEach(line => {
+                if (!server.lines.some(l => l.indexOf(line) !== -1)) result.problems.push('Server output does not say "' + line + '"');
+            });
+        }
 
         if (sc.sameStepsAs) {
             const same = compareSameSteps(JSON.parse(JSON.stringify(ctx.entries)), sc.sameStepsAs, !env.tools.sevenZ);

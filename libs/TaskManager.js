@@ -39,7 +39,7 @@ class TaskManager{
         this.tasks = {};
         this.runningQueue = [];
         
-        const progressReceiver = new ProgressReceiver();
+        const progressReceiver = new ProgressReceiver(config.host);
         progressReceiver.addListener(this.onProgressUpdate.bind(this));
 
         async.series([

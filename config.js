@@ -31,6 +31,7 @@ Usage: node index.js [options]
 Options:
 	--config <path>	Path to the configuration file (default: config-default.json)	
 	-p, --port <number> 	Port to bind the server to, or "auto" to automatically find an available port (default: 3000)
+	--host <address>	Address to bind the server and the UDP progress receiver to, for example 127.0.0.1 to accept connections from this machine only. The engine sends progress to 127.0.0.1, so with a host other than 127.0.0.1 or 0.0.0.0 tasks report no progress. (default: every interface)
 	--socket <path>	Also listen on this Unix socket path, with mode 0600. Removes a stale socket at the path; any other file there stops the start. Not supported on Windows. (default: none)
 	--odm_path <path>	Path to the AIDM engine's code (deprecated)	(default: /code)
 	--odx_path <path>	Path to the AIDM engine's code (default: /code)
@@ -66,7 +67,7 @@ error | warn | info | verbose | debug | silly
 	process.exit(0);
 }
 
-const allOpts = ["slice","help","config","odm_path","odx_path","log_level","port","p","socket",
+const allOpts = ["slice","help","config","odm_path","odx_path","log_level","port","p","host","socket",
 "deamonize","daemon","d","parallel_queue_processing","q",
 "cleanup_tasks_after","cleanup_uploads_after","test","test_skip_orthophotos",
 "test_skip_dems","test_drop_uploads","test_fail_tasks","test_seconds",
@@ -123,6 +124,8 @@ config.logger.maxFiles = fromConfigFile("logger.maxFiles", 10); // Max number of
 config.logger.logDirectory = fromConfigFile("logger.logDirectory", ''); // Set this to a full path to a directory - if not set logs will be written to the application directory.
 
 config.port = (argv.port || argv.p || fromConfigFile("port", process.env.PORT || "auto"));
+// Absent or empty, the API listens on every interface
+config.host = argv.host !== undefined ? argv.host : (fromConfigFile("host", "") || "");
 config.socket = argv.socket || fromConfigFile("socket", "");
 config.deamon = argv.deamonize || argv.daemon || argv.d || fromConfigFile("daemon", false);
 config.parallelQueueProcessing = parseInt(argv.parallel_queue_processing || argv.q || fromConfigFile("parallelQueueProcessing", 1));
