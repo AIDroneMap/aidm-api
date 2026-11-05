@@ -10,6 +10,10 @@ The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0.
 
 - The README states the compatibility rule with its exception: existing fields and endpoints stay unless an approved spec removes them, and 2.7.0 removed the two upstream fields from `GET /info` that way. The design note's Mac check command no longer passes `--test`, which cannot work in an image. Evidence: `README.md` and `docs/design/api-2.7.0.md`.
 
+### Added
+
+- Native package preparation scripts pin the engine in `scripts/engine-sha256sums.txt`, download its Windows archives by SHA-256 with `scripts/get_engine.py`, and assemble the API zip and engine into a native archive with `scripts/package_native.py`. Assembly checks the engine layout and version, fixes archive metadata, writes a JSON description with the name, size and SHA-256, and refuses assets over 2 GiB. The pin stays at engine 0.2.0 with no native archives until its Windows release exists. Evidence: `tests/unit/engine-pins.test.js`, `tests/unit/get-engine.test.js` and `tests/unit/package-native.test.js` cover pin mismatches, local downloads, fixture layouts, refusals, size boundaries and identical bytes on repeat assembly (#96).
+
 ## 2.7.0
 
 2.7.0 is the task API of AIDroneMap 0.2. It is released together with engine 0.2.0 and the first tag of [aidm-ui](https://github.com/AIDroneMap/aidm-ui), and its images are built on engine 0.2.0. Each release now publishes a signed manifest, `manifest.json` with `manifest.json.sig`, and aidm-ui installs the engine from it. The API can listen on a Unix socket next to its port. It can also create a task from a folder on its own machine, through links instead of copies. Every release archive bundles 7-Zip, so zip uploads and zip addresses need no tool on the `PATH`. On an archive, a corrupt zip therefore fails with a message that names 7-Zip where it named `unzip` before. `GET /info` no longer returns `upstreamVersion` and `engineUpstreamVersion`: a client that read them finds them absent.
