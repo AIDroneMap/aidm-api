@@ -49,7 +49,7 @@ function load(filename, overrides = {}) {
         '../config': config,
         '../config.js': config,
         './Directories': { data: path.join(directory, 'data') },
-        './logger': { info() {}, debug() {}, warn() {} },
+        './logger': { info() {}, debug() {}, warn() {}, error() {} },
         './odmRunner': {},
         './odmInfo': { filterOptions: (options, cb) => cb(null, []) },
         './processRunner': {},
@@ -83,8 +83,9 @@ function task(initialized = true) {
     });
 }
 
+// The task list write has its own tests; here it would outlive the test
 function manager() {
-    return Object.assign(Object.create(load('TaskManager.js').prototype), { tasks: {} });
+    return Object.assign(Object.create(load('TaskManager.js').prototype), { tasks: {}, dumpTaskList() {} });
 }
 
 function callbackResult(invoke) {

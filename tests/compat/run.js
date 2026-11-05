@@ -555,9 +555,13 @@ function startServer(command, copyDir, port, flags, noTools) {
         env = envWithoutTools();
     }
     const args = full.slice(1).concat(['--test', '--port', String(port)], flags);
-    const server = { lines: [], exited: false, exitInfo: null, exitCode: null, closed: false, child: null };
+    const server = { lines: [], dumpErrors: [], exited: false, exitInfo: null, exitCode: null, closed: false, child: null };
     const keep = chunk => {
-        String(chunk).split(/\r?\n/).forEach(l => { if (l.length) server.lines.push(l); });
+        String(chunk).split(/\r?\n/).forEach(l => {
+            if (l.length) server.lines.push(l);
+            // Kept apart from the last lines, which a long scenario pushes out
+            if (l.includes('Could not dump tasks')) server.dumpErrors.push(l);
+        });
         if (server.lines.length > 500) server.lines.splice(0, server.lines.length - 500);
     };
     let child;
@@ -1376,6 +1380,11 @@ async function runScenario(sc, opts, env) {
         const ctx = makeContext(env, port, copyDir, target);
         await sc.run(ctx);
         result.steps = ctx.entries.length;
+
+        // The API writes its task list on every change. A failed write is
+        // only logged, so the harness reads the log to see it, on every
+        // platform the harness runs on.
+        server.dumpErrors.forEach(l => result.problems.push('The API could not write its task list: ' + l));
 
         if (sc.sameStepsAs) {
             const same = compareSameSteps(JSON.parse(JSON.stringify(ctx.entries)), sc.sameStepsAs, !env.tools.sevenZ);
