@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "sequence": 2008000,
+  "packageVersion": "2.8.0",
+  "engineVersion": "0.3.0",
+  "minimumUiVersion": "0.1.0",
+  "variants": {
+    "linux-amd64-cpu": {
+      "kind": "container",
+      "image": "ghcr.io/aidronemap/aidm-api",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 442635876,
+      "gpu": false,
+      "taskApiSocket": true
+    },
+    "linux-arm64-cpu": {
+      "kind": "container",
+      "image": "ghcr.io/aidronemap/aidm-api",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "size": 442635876,
+      "gpu": false,
+      "taskApiSocket": true
+    },
+    "linux-amd64-gpu": {
+      "kind": "container",
+      "image": "ghcr.io/aidronemap/aidm-api",
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "size": 442635876,
+      "gpu": true,
+      "taskApiSocket": true
+    }
+  }
+}
