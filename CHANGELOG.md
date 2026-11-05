@@ -9,6 +9,7 @@ The AIDM 0.1.0 release ships engine 0.1.0 with API 2.5.0.
 ### Changed
 
 - The README states the compatibility rule with its exception: existing fields and endpoints stay unless an approved spec removes them, and 2.7.0 removed the two upstream fields from `GET /info` that way. The design note's Mac check command no longer passes `--test`, which cannot work in an image. Evidence: `README.md` and `docs/design/api-2.7.0.md`.
+- The API writes its task list whenever a task is added, removed or restarted, or its status code changes. Before, it wrote the list once an hour and at a clean stop, so a stop with `taskkill` or any kill lost the tasks changed since the last write, and the next start deleted their folders, results included. Each write goes to `tasks.json.tmp` in the data folder and is renamed over `tasks.json`, so a kill at any moment leaves a complete file. One write runs at a time, and the changes made during a write share the next one. Progress, output lines and processing time start no write. A failed write is logged and the request that caused it is still answered. The file name and its content do not change, and the hourly write and the write at a clean stop stay. A task that was running comes back queued and starts over, as before. The compatibility harness now fails a scenario in which the API logged a failed write, so the dry run checks the rename on each executable, Windows included. Evidence: `tests/unit/task-list-dump.test.js`, the compatibility harness with its golden files unchanged, and the release workflow's dry run (#95).
 
 ## 2.7.0
 
