@@ -616,11 +616,16 @@ async function waitReady(server, target) {
 const SOCKET_REFUSAL = 'not supported on Windows';
 
 async function checkSocketRefusal(server) {
+    await checkRefusal(server, '--socket on Windows', SOCKET_REFUSAL);
+}
+
+// The start must fail, with an error that holds the text
+async function checkRefusal(server, what, text) {
     const closed = await waitFor(() => server.closed || (!server.child && server.exited), SERVER_READY_TIMEOUT, 100);
-    if (!closed) throw new Error('Server did not refuse --socket within ' + SERVER_READY_TIMEOUT / 1000 + ' s');
-    if (server.exitCode === 0) throw new Error('Server exited with code 0 after --socket on Windows');
-    if (!server.lines.some(l => l.indexOf(SOCKET_REFUSAL) !== -1)) {
-        throw new Error('Server output does not say "' + SOCKET_REFUSAL + '"');
+    if (!closed) throw new Error('Server did not refuse ' + what + ' within ' + SERVER_READY_TIMEOUT / 1000 + ' s');
+    if (server.exitCode === 0) throw new Error('Server exited with code 0 after ' + what);
+    if (!server.lines.some(l => l.indexOf(text) !== -1)) {
+        throw new Error('Server output does not say "' + text + '"');
     }
 }
 
@@ -965,6 +970,14 @@ scenarios.push({
     flags: () => ['--host', '127.0.0.1'],
     logLines: port => ['Server has started on 127.0.0.1:' + port, 'Listening on 127.0.0.1:6367 UDP for progress updates'],
     run: c => defaultScenario.run(c, { withoutSwagger: true })
+});
+
+// A host this machine does not have fails the start, on every platform.
+// 192.0.2.1 is a documentation address that no machine is given (RFC 5737).
+scenarios.push({
+    name: 'host-refusal',
+    flags: () => ['--host', '192.0.2.1'],
+    refuses: port => 'Cannot listen on 192.0.2.1:' + port + ': 192.0.2.1 is not an address of this machine'
 });
 
 // Every request goes through the task API socket. Each step repeats the step
@@ -1382,6 +1395,12 @@ async function runScenario(sc, opts, env) {
             server = startServer(opts.command, copyDir, port, ['--socket', socketPath], false);
             await checkSocketRefusal(server);
             result.note = 'Windows: the start with --socket failed with the expected error, no request sent';
+            return result;
+        }
+        if (sc.refuses) {
+            server = startServer(opts.command, copyDir, port, sc.flags(env), false);
+            await checkRefusal(server, sc.flags(env).join(' '), sc.refuses(port));
+            result.note = 'the start failed with the expected error, no request sent';
             return result;
         }
         const flags = sc.flags(env).concat(socketPath ? ['--socket', socketPath] : []);

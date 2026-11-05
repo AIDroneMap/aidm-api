@@ -16,6 +16,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 "use strict";
+const net = require('net');
 
 // The host option binds the port and the UDP progress receiver to one
 // address. An empty host binds them to every interface.
@@ -29,9 +30,17 @@ function checkOption(host){
     return null;
 }
 
+// Calls back with an error when no port can be bound on the host. Port 0 is
+// never in use, so the error is about the address itself.
+function checkAddress(host, cb){
+    const probe = net.createServer();
+    probe.once('error', err => cb(err));
+    probe.listen(0, host, () => probe.close(() => cb(null)));
+}
+
 // "127.0.0.1:3000", or "[::1]:3000" for an IPv6 address
 function hostPort(host, port){
     return (host.includes(':') ? `[${host}]` : host) + ':' + port;
 }
 
-module.exports = { checkOption, hostPort };
+module.exports = { checkOption, checkAddress, hostPort };

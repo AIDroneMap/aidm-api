@@ -150,7 +150,7 @@ test('refuses to start on an address this machine does not have, naming the addr
     const api = await start(ws, ['--host', ABSENT_ADDRESS]);
     const exit = await stopped(api);
     expect(exit.code).not.toBe(0);
-    expect(api.output).toContain(`Cannot listen on ${ABSENT_ADDRESS}:${api.port}`);
+    expect(api.output).toContain(`Cannot listen on ${ABSENT_ADDRESS}:${api.port}: ${ABSENT_ADDRESS} is not an address of this machine`);
     expect(api.output).not.toContain('Server has started');
 });
 
@@ -159,7 +159,7 @@ test('with --port auto, an address this machine does not have fails on the first
     const api = await start(ws, ['--host', ABSENT_ADDRESS, '--port', 'auto']);
     const exit = await stopped(api);
     expect(exit.code).not.toBe(0);
-    expect(api.output).toContain(`Cannot listen on ${ABSENT_ADDRESS}:3000`);
+    expect(api.output).toContain(`Cannot listen on ${ABSENT_ADDRESS}:3000: ${ABSENT_ADDRESS} is not an address of this machine`);
     expect(api.output).not.toContain(`Cannot listen on ${ABSENT_ADDRESS}:3001`);
     expect(api.output).not.toContain('Server has started');
 });

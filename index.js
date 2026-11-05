@@ -982,13 +982,25 @@ let commands = [
             });
         };
 
+        let firstPort, start;
         if (Number.isInteger(parseInt(config.port))){
-            startServer(config.port, cb);
+            firstPort = config.port;
+            start = () => startServer(config.port, cb);
         }else if (config.port === "auto"){
-            tryStartServer(3000, cb);
+            firstPort = 3000;
+            start = () => tryStartServer(3000, cb);
         }else{
-            cb(new Error(`Invalid port: ${config.port}`));
+            return cb(new Error(`Invalid port: ${config.port}`));
         }
+
+        // On Windows an address this machine does not have fails with
+        // EADDRINUSE too, which would send "auto" through every port. The
+        // address is checked once before the first port.
+        if (!config.host) return start();
+        listenHost.checkAddress(config.host, err => {
+            if (err) return cb(new Error(`Cannot listen on ${where(firstPort)}: ${config.host} is not an address of this machine`));
+            start();
+        });
     },
     cb => {
         if (!config.socket) return cb();
