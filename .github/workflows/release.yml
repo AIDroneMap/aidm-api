@@ -98,6 +98,7 @@ jobs:
       cpu-base: ${{ steps.base.outputs.cpu-base }}
       gpu-base: ${{ steps.base.outputs.gpu-base }}
       gpu-only: ${{ steps.gpu-only.outputs.gpu-only }}
+      native-archives: ${{ steps.native.outputs.available }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -208,6 +209,30 @@ jobs:
             echo "gpu-base=$gpu"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Check for pinned Windows engine archives
+        id: native
+        env:
+          ENGINE_VERSION: ${{ steps.base.outputs.engine-version }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import sys
+
+          sys.path.insert(0, "scripts")
+          from get_engine import load_pins
+
+          version, archives = load_pins()
+          if version != os.environ["ENGINE_VERSION"]:
+              raise SystemExit(f"Engine sums pin {version}, but the base images use {os.environ['ENGINE_VERSION']}.")
+          available = bool(archives)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"available={str(available).lower()}\n")
+          if available:
+              print(f"Native packages enabled: engine {version} pins both Windows archives.")
+          else:
+              print(f"Native packages skipped: engine {version} has no pinned Windows archives.")
+          PY
+
   # Builds every archive once, on Linux. Does not need the base images, so it
   # runs before the aidm release is public.
   executables:
@@ -288,6 +313,69 @@ jobs:
         with:
           name: executables
           path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  native-packages:
+    name: Assemble Windows native packages
+    needs: [check, executables]
+    if: >-
+      !cancelled()
+      && needs.check.result == 'success'
+      && needs.executables.result == 'success'
+      && needs.check.outputs.native-archives == 'true'
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download executables
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: executables
+          path: dist
+
+      - name: Check executable archive checksums
+        working-directory: dist
+        run: sha256sum -c SHA256SUMS
+
+      - name: Assemble native packages from pinned engine archives
+        run: |
+          for variant in windows-x64 windows-x64-cuda; do
+            engine=$(python3 scripts/get_engine.py "$variant" "$RUNNER_TEMP/engine")
+            python3 scripts/package_native.py "$variant" \
+              "dist/aidm-api-$VERSION-windows-x64.zip" "$engine" dist-native
+          done
+          cd dist-native
+          sha256sum aidm-native-*.tar.gz > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload native packages and checksums
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-packages
+          path: |
+            dist-native/*.tar.gz
+            dist-native/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload native package descriptions
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-descriptions
+          path: dist-native/*.json
           if-no-files-found: error
           retention-days: 7
 
@@ -754,13 +842,16 @@ jobs:
   # never after a failure or a cancel.
   manifest:
     name: Build release manifest
-    needs: [check, build, gpu-test, tag-images]
+    needs: [check, build, gpu-test, tag-images, native-packages]
     if: >-
       !cancelled()
+      && needs.check.result == 'success'
       && needs.build.result == 'success'
       && needs.gpu-test.result == 'success'
       && (needs.tag-images.result == 'success'
         || (needs.tag-images.result == 'skipped' && needs.check.outputs.publish != 'true'))
+      && ((needs.native-packages.result == 'success' && needs.check.outputs.native-archives == 'true')
+        || (needs.native-packages.result == 'skipped' && needs.check.outputs.native-archives == 'false'))
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -822,7 +913,11 @@ jobs:
   sign-manifest:
     name: Sign release manifest
     needs: manifest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      !cancelled()
+      && needs.manifest.result == 'success'
+      && github.event_name == 'push'
+      && startsWith(github.ref, 'refs/tags/v')
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -886,6 +981,7 @@ jobs:
     needs: [check, manifest]
     if: >-
       !cancelled()
+      && needs.check.result == 'success'
       && needs.manifest.result == 'success'
       && needs.check.outputs.publish != 'true'
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
@@ -968,8 +1064,16 @@ jobs:
 
   release:
     name: Draft release
-    needs: [check, tag-images, sign-manifest, executables-test]
-    if: github.event_name == 'push'
+    needs: [check, tag-images, sign-manifest, executables-test, native-packages]
+    if: >-
+      !cancelled()
+      && github.event_name == 'push'
+      && needs.check.result == 'success'
+      && needs.tag-images.result == 'success'
+      && needs.sign-manifest.result == 'success'
+      && needs.executables-test.result == 'success'
+      && ((needs.native-packages.result == 'success' && needs.check.outputs.native-archives == 'true')
+        || (needs.native-packages.result == 'skipped' && needs.check.outputs.native-archives == 'false'))
     # Runner images are pinned on purpose. Moving to a new image is its own PR, with a full dry run.
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -987,6 +1091,28 @@ jobs:
           name: executables
           path: dist
 
+      - name: Download native packages
+        if: needs.check.outputs.native-archives == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-packages
+          path: native
+
+      - name: Download native package descriptions
+        if: needs.check.outputs.native-archives == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-descriptions
+          path: native-descriptions
+
+      - name: Combine native and executable checksums
+        if: needs.check.outputs.native-archives == 'true'
+        run: |
+          cp native/*.tar.gz dist/
+          cat native/SHA256SUMS >> dist/SHA256SUMS
+          cd dist
+          sha256sum -c SHA256SUMS
+
       # Signed and verified by sign-manifest
       - name: Download signed manifest
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1001,6 +1127,8 @@ jobs:
           VERSION: ${{ needs.check.outputs.version }}
           CPU_DIGEST: ${{ needs.tag-images.outputs.cpu-digest }}
           GPU_DIGEST: ${{ needs.tag-images.outputs.gpu-digest }}
+          ENGINE_VERSION: ${{ needs.check.outputs.engine-version }}
+          NATIVE_ARCHIVES: ${{ needs.check.outputs.native-archives }}
         run: |
           tag="$GITHUB_REF_NAME"
           awk -v heading="## $VERSION" '
@@ -1035,6 +1163,19 @@ jobs:
             echo '```'
             cat dist/SHA256SUMS
             echo '```'
+            if [ "$NATIVE_ARCHIVES" = "true" ]; then
+              echo
+              echo "### Native packages"
+              echo
+              echo "Windows packages with AIDM engine $ENGINE_VERSION. Check the downloads with \`SHA256SUMS\`."
+              echo
+              echo "| Package | Size (bytes) | SHA-256 |"
+              echo "| --- | --- | --- |"
+              for variant in windows-x64 windows-x64-cuda; do
+                jq -r '"| `\(.name)` | \(.size) | `\(.sha256)` |"' \
+                  "native-descriptions/aidm-native-$VERSION-$variant.json"
+              done
+            fi
           } > notes.md
 
           if is_draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2> /dev/null); then
@@ -1048,4 +1189,8 @@ jobs:
           fi
 
           # Only reached for a draft
-          gh release upload "$tag" dist/aidm-api-* dist/SHA256SUMS manifest/manifest.json manifest/manifest.json.sig --clobber
+          assets=(dist/aidm-api-* dist/SHA256SUMS manifest/manifest.json manifest/manifest.json.sig)
+          if [ "$NATIVE_ARCHIVES" = "true" ]; then
+            assets+=(dist/aidm-native-*.tar.gz)
+          fi
+          gh release upload "$tag" "${assets[@]}" --clobber
